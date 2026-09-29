@@ -162,6 +162,14 @@ jobs:
                   f.write("# Proguard rules\\n")
               print("Created android/app/proguard-rules.pro")
 
+          # 7. Write gradle.properties with android.useAndroidX=true
+          gradle_props = "android.useAndroidX=true\nandroid.nonTransitiveRClass=true\norg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\n"
+          with open("gradle.properties", "w") as f:
+              f.write(gradle_props)
+          with open("android/gradle.properties", "w") as f:
+              f.write(gradle_props)
+          print("Configured gradle.properties with android.useAndroidX=true")
+
       - name: Ensure Wrapper Binary & Accept SDK Licenses
         run: |
           mkdir -p gradle/wrapper android/gradle/wrapper
