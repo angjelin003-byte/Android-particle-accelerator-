@@ -1,17 +1,14 @@
 package com.example.app
 
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.app.ui.ControlPanel
 import com.example.app.ui.SimulationView
@@ -23,18 +20,47 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: SimulationViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
             MaterialTheme(colorScheme = if (uiState.theme == "dark") darkColorScheme() else lightColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    Column {
-                        SimulationView(modifier = Modifier.weight(1f))
-                        ControlPanel(
-                            state = uiState,
-                            onTogglePlay = { viewModel.togglePlay() },
-                            onToggleTheme = { viewModel.toggleTheme() },
-                            onSetLayout = { viewModel.setLayout(it) },
-                            onSetTrailLength = { viewModel.setTrailLength(it) }
-                        )
+                    if (isLandscape) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            SimulationView(
+                                state = uiState,
+                                modifier = Modifier.weight(1.5f).fillMaxHeight()
+                            )
+                            ControlPanel(
+                                state = uiState,
+                                onTogglePlay = { viewModel.togglePlay() },
+                                onReset = { viewModel.resetSimulation() },
+                                onToggleTheme = { viewModel.toggleTheme() },
+                                onSetBeamEnergy = { viewModel.setBeamEnergy(it) },
+                                onSetCollisionAngle = { viewModel.setCollisionAngle(it) },
+                                onSetTrailLength = { viewModel.setTrailLength(it) },
+                                onSetSpeed = { viewModel.setSpeed(it) },
+                                modifier = Modifier.weight(1f).fillMaxHeight()
+                            )
+                        }
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            SimulationView(
+                                state = uiState,
+                                modifier = Modifier.weight(1f).fillMaxWidth()
+                            )
+                            ControlPanel(
+                                state = uiState,
+                                onTogglePlay = { viewModel.togglePlay() },
+                                onReset = { viewModel.resetSimulation() },
+                                onToggleTheme = { viewModel.toggleTheme() },
+                                onSetBeamEnergy = { viewModel.setBeamEnergy(it) },
+                                onSetCollisionAngle = { viewModel.setCollisionAngle(it) },
+                                onSetTrailLength = { viewModel.setTrailLength(it) },
+                                onSetSpeed = { viewModel.setSpeed(it) },
+                                modifier = Modifier.weight(1f).fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
