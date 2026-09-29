@@ -10,15 +10,16 @@ import { FoldableControlPanel } from './components/FoldableControlPanel';
 import { EnergySpectrumBar } from './components/EnergySpectrumBar';
 import { TopTelemetryBar } from './components/TopTelemetryBar';
 import { ExperimentModal } from './components/ExperimentModal';
+import { ThemeProvider } from './context/ThemeContext';
 
 export default function App() {
+  // Collapse panel by default on mobile screens (< 768px) to maximize 3D viewport
   const [isPanelCollapsed, setIsPanelCollapsed] = useState<boolean>(() => {
     return typeof window !== 'undefined' ? window.innerWidth < 768 : false;
   });
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
-  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
-    return typeof window !== 'undefined' ? window.innerHeight > window.innerWidth && window.innerWidth < 768 : false;
-  });
+  const [layout, setLayout] = useState<'vertical' | 'horizontal'>('vertical');
+  const [trailLength, setTrailLength] = useState<number>(200);
 
   const {
     config,
@@ -49,37 +50,7 @@ export default function App() {
     setCustomChargeB,
   } = useSimulation('relativistic_billiards');
 
-  // Handle Orientation Changes (Horizontal vs Vertical compatibility)
-  useEffect(() => {
-    const handleResize = () => {
-      const portrait = window.innerHeight > window.innerWidth && window.innerWidth < 768;
-      setIsPortrait(portrait);
-      if (portrait) {
-        setIsPanelCollapsed(true);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
-
-  // Sync Theme with document root
-  useEffect(() => {
-    const root = document.documentElement;
-    if (config.theme === 'dark') {
-      root.classList.add('dark');
-      root.classList.remove('light');
-    } else {
-      root.classList.add('light');
-      root.classList.remove('dark');
-    }
-  }, [config.theme]);
-
-  // Keyboard shortcuts for laboratory workstation
+  // Ergonomic keyboard shortcuts for laboratory workstation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -107,19 +78,10 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [togglePlay, stepForward, resetSimulation]);
 
-  const toggleTheme = () => {
-    setConfig((prev) => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }));
-  };
-
-  const isDark = config.theme === 'dark';
-
   return (
-    <div
-      className={`flex flex-col h-screen w-screen overflow-hidden select-none transition-colors duration-200 ${
-        isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
-      }`}
-    >
-      {/* 1. TOP TELEMETRY BAR */}
+    <ThemeProvider>
+      <div className={`flex ${layout === 'vertical' ? 'flex-col' : 'flex-row'} h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 select-none`}>
+      {/* 1. TOP COMPACT TELEMETRY BAR */}
       <TopTelemetryBar
         activePreset={activePreset}
         onSelectPreset={applyPreset}
@@ -130,12 +92,10 @@ export default function App() {
         onOpenGuide={() => setIsGuideOpen(true)}
         isPanelCollapsed={isPanelCollapsed}
         onTogglePanel={() => setIsPanelCollapsed((prev) => !prev)}
-        theme={config.theme}
-        onToggleTheme={toggleTheme}
       />
 
-      {/* 2. MAIN 3D WORKSPACE ZONE (Adapts for horizontal vs vertical viewport) */}
-      <div className={`flex-1 flex overflow-hidden relative ${isPortrait ? 'flex-col' : 'flex-row'}`}>
+      {/* 2. MAIN 3D WORKSPACE ZONE */}
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Foldable Left Control Panel */}
         <FoldableControlPanel
           isCollapsed={isPanelCollapsed}
@@ -163,23 +123,22 @@ export default function App() {
           onPlayPause={togglePlay}
           onStep={stepForward}
           onReset={resetSimulation}
+          layout={layout}
+          setLayout={setLayout}
+          trailLength={trailLength}
+          setTrailLength={setTrailLength}
         />
 
         {/* Center 3D Interactive WebGL Scene */}
-        <main
-          className={`flex-1 relative overflow-hidden transition-colors ${
-            isDark ? 'bg-slate-950' : 'bg-slate-50'
-          }`}
-        >
+        <main className="flex-1 h-full relative overflow-hidden bg-slate-50 dark:bg-slate-950">
           <ParticleScene3D
             particles={simState.particles}
             vertex={simState.vertex}
             config={config}
-            onConfigChange={(updates) => setConfig((prev) => ({ ...prev, ...updates }))}
             impactParameter={impactParameter}
             onImpactParameterChange={setImpactParameter}
             scatteringAngles={simState.scatteringAngles}
-            onResetSimulation={resetSimulation}
+            trailLength={trailLength}
           />
         </main>
       </div>
@@ -192,7 +151,6 @@ export default function App() {
           currentEnergy={simState.currentTotalEnergy}
           invariantMass={simState.currentInvariantMass}
           scatteringAngles={simState.scatteringAngles}
-          theme={config.theme}
         />
       )}
 
@@ -202,8 +160,8 @@ export default function App() {
         onClose={() => setIsGuideOpen(false)}
         activePreset={activePreset}
         onSelectPreset={applyPreset}
-        theme={config.theme}
       />
-    </div>
+      </div>
+    </ThemeProvider>
   );
 }
