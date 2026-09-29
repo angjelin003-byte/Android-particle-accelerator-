@@ -22,7 +22,8 @@ fun SimulationView(
     modifier: Modifier = Modifier
 ) {
     val isDark = state.theme == "dark"
-    val bgColor = if (isDark) AppTheme.DarkBg else AppTheme.LightBg
+    // Use customBgColor if set, otherwise fallback to theme default
+    val bgColor = state.customBgColor ?: if (isDark) AppTheme.DarkBg else AppTheme.LightBg
     val gridColor = if (isDark) Color(0x1AFFFFFF) else Color(0x1A000000)
 
     Canvas(

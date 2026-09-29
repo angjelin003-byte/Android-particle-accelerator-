@@ -7,6 +7,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.*
+import androidx.compose.ui.graphics.Color
 
 class SimulationViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(SimulationState())
@@ -41,8 +42,21 @@ class SimulationViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(theme = if (current == "dark") "light" else "dark")
     }
 
-    fun setBombardmentType(type: BombardmentType) {
-        _uiState.value = _uiState.value.copy(bombardmentType = type)
+    fun setBgColor(color: Color?) {
+        _uiState.value = _uiState.value.copy(customBgColor = color)
+    }
+
+    fun setActiveSection(section: String) {
+        _uiState.value = _uiState.value.copy(activeSection = section)
+    }
+
+    fun selectParticleA(def: ParticleDefinition) {
+        _uiState.value = _uiState.value.copy(selectedParticleA = def)
+        resetSimulation()
+    }
+
+    fun selectParticleB(def: ParticleDefinition) {
+        _uiState.value = _uiState.value.copy(selectedParticleB = def)
         resetSimulation()
     }
 
@@ -69,16 +83,9 @@ class SimulationViewModel : ViewModel() {
     fun resetSimulation() {
         stopSimulation()
         
-        val type = _uiState.value.bombardmentType
         val energyMeV = _uiState.value.beamEnergyGeV * 1000.0
-        
-        val (p1Def, p2Def) = when (type) {
-            BombardmentType.PROTON_PROTON -> ElementaryParticles.PROTON to ElementaryParticles.PROTON
-            BombardmentType.ELECTRON_POSITRON -> ElementaryParticles.ELECTRON to ElementaryParticles.POSITRON
-            BombardmentType.PROTON_ANTIPROTON -> ElementaryParticles.PROTON to ElementaryParticles.ANTIPROTON
-            BombardmentType.HEAVY_ION -> ElementaryParticles.LEAD to ElementaryParticles.LEAD
-            BombardmentType.CUSTOM -> ElementaryParticles.TOP to ElementaryParticles.HIGGS
-        }
+        val p1Def = _uiState.value.selectedParticleA
+        val p2Def = _uiState.value.selectedParticleB
 
         fun createBeamParticle(def: ParticleDefinition, x: Double, side: String): ParticleState {
             val totalE = energyMeV + def.massMeV
@@ -158,23 +165,15 @@ class SimulationViewModel : ViewModel() {
         val list = mutableListOf<ParticleState>()
         val rnd = kotlin.random.Random
         val energyGeV = _uiState.value.beamEnergyGeV
-        val count = (8 + rnd.nextInt(12) * (energyGeV / 2).toInt()).coerceAtMost(60)
+        val count = (12 + rnd.nextInt(12) * (energyGeV / 2).toInt()).coerceAtMost(80)
         
-        val particlePool = listOf(
-            ElementaryParticles.PHOTON, ElementaryParticles.GLUON, 
-            ElementaryParticles.MUON, ElementaryParticles.TAU, 
-            ElementaryParticles.PION, ElementaryParticles.UP, ElementaryParticles.DOWN,
-            ElementaryParticles.CHARM, ElementaryParticles.STRANGE,
-            ElementaryParticles.TOP, ElementaryParticles.BOTTOM,
-            ElementaryParticles.W_PLUS, ElementaryParticles.W_MINUS,
-            ElementaryParticles.Z_BOSON, ElementaryParticles.HIGGS
-        )
+        val particlePool = ElementaryParticles.ALL_PARTICLES
 
         for (i in 0 until count) {
             val def = particlePool[rnd.nextInt(particlePool.size)]
             val theta = rnd.nextDouble(0.0, PI)
             val phi = rnd.nextDouble(0.0, 2 * PI)
-            val speed = 2.0 + rnd.nextDouble(1.0, 7.0)
+            val speed = 2.0 + rnd.nextDouble(1.0, 8.0)
             
             list.add(ParticleState(
                 id = "prod_${System.currentTimeMillis()}_$i",

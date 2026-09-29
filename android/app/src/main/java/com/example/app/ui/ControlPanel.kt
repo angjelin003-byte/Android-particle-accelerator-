@@ -1,8 +1,11 @@
 package com.example.app.ui
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -10,13 +13,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.app.types.SimulationState
-import com.example.app.types.AppTheme
-import com.example.app.types.BombardmentType
+import com.example.app.types.*
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -26,11 +28,15 @@ fun ControlPanel(
     onReset: () -> Unit,
     onToggleTheme: () -> Unit,
     onToggleOrientation: () -> Unit,
-    onSetBombardmentType: (BombardmentType) -> Unit,
+    onSetBgColor: (Color?) -> Unit,
+    onSetActiveSection: (String) -> Unit,
+    onSelectParticleA: (ParticleDefinition) -> Unit,
+    onSelectParticleB: (ParticleDefinition) -> Unit,
     onSetBeamEnergy: (Double) -> Unit,
     onSetTrailLength: (Int) -> Unit,
     onSetSpeed: (Double) -> Unit,
     onTogglePanel: () -> Unit,
+    onExit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -45,31 +51,47 @@ fun ControlPanel(
         tonalElevation = 6.dp
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
+            // Header with Exit Button
             Row(
                 modifier = Modifier.fillMaxWidth().padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onTogglePanel) {
-                    Icon(
-                        imageVector = if (state.isPanelExpanded) Icons.Default.Close else Icons.Default.Menu,
-                        contentDescription = "Menu",
-                        tint = textColor
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onTogglePanel) {
+                        Icon(
+                            imageVector = if (state.isPanelExpanded) Icons.Default.Close else Icons.Default.Menu,
+                            contentDescription = "Menu",
+                            tint = textColor
+                        )
+                    }
+                    
+                    if (state.isPanelExpanded) {
+                        Row(
+                            modifier = Modifier.padding(start = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            AppTheme.BgPalette.forEach { color ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .clickable { onSetBgColor(color) }
+                                        .then(if (state.customBgColor == color) Modifier.background(Color.White.copy(0.4f)) else Modifier)
+                                )
+                            }
+                        }
+                    }
                 }
                 
                 if (state.isPanelExpanded) {
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onToggleOrientation) {
-                            Icon(
-                                imageVector = if (state.forceLandscape) Icons.Default.Refresh else Icons.Default.Build,
-                                contentDescription = "Orientation",
-                                tint = AppTheme.DarkAccent
-                            )
+                            Icon(Icons.Default.Refresh, tint = AppTheme.DarkAccent, contentDescription = "Orientation")
                         }
-                        IconButton(onClick = onToggleTheme) {
-                            Text(if (isDark) "🌙" else "☀️", fontSize = 16.sp)
+                        IconButton(onClick = onExit) {
+                            Icon(Icons.Default.ExitToApp, tint = Color.Red.copy(alpha = 0.8f), contentDescription = "Exit")
                         }
                     }
                 }
@@ -81,52 +103,127 @@ fun ControlPanel(
                 exit = shrinkHorizontally() + fadeOut()
             ) {
                 Column(
-                    modifier = Modifier
-                        .verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp)
-                        .width(260.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
                 ) {
-                    Text("ATLAS DETECTOR v2", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black), color = textColor)
-
-                    Surface(color = textColor.copy(alpha = 0.05f), shape = MaterialTheme.shapes.medium) {
-                        Row(modifier = Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Button(onClick = onTogglePlay, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppTheme.DarkPrimary)) {
-                                Text(if (state.isRunning) "PAUSE" else "RUN", fontSize = 11.sp)
-                            }
-                            OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
-                                Text("RESET", fontSize = 11.sp)
-                            }
-                        }
-                    }
-
-                    Text("MODE", style = MaterialTheme.typography.labelSmall, color = secondaryTextColor)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        BombardmentType.values().forEach { type ->
-                            FilterChip(
-                                selected = state.bombardmentType == type,
-                                onClick = { onSetBombardmentType(type) },
-                                label = { Text(type.label, fontSize = 10.sp) }
+                    // Subpanel Navigation
+                    TabRow(
+                        selectedTabIndex = when(state.activeSection) { "BEAM" -> 0; "PARTICLES" -> 1; "PHYSICS" -> 2; else -> 0 },
+                        containerColor = Color.Transparent,
+                        contentColor = AppTheme.DarkPrimary,
+                        divider = {}
+                    ) {
+                        listOf("BEAM", "PARTICLES", "PHYSICS").forEachIndexed { index, title ->
+                            Tab(
+                                selected = state.activeSection == title,
+                                onClick = { onSetActiveSection(title) },
+                                text = { Text(title, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
                             )
                         }
                     }
 
-                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    LabSlider("Energy", state.beamEnergyGeV, onSetBeamEnergy, 1f..14f, "GeV", "%.1f", textColor, secondaryTextColor)
-                    LabSlider("Temporal", state.speedMultiplier, onSetSpeed, 0.2f..3.0f, "x", "%.1f", textColor, secondaryTextColor)
-                    LabSlider("Trails", state.trailLength.toDouble(), { onSetTrailLength(it.toInt()) }, 10f..400f, "px", "%.0f", textColor, secondaryTextColor)
-
-                    Surface(color = AppTheme.DarkAccent.copy(alpha = 0.1f), shape = MaterialTheme.shapes.small) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            InfoRow("STATUS", if (state.isRunning) "CAPTURING" else "IDLE", textColor, secondaryTextColor)
-                            InfoRow("EVENTS", state.particles.size.toString(), textColor, secondaryTextColor)
-                            InfoRow("SYMMETRY", state.bombardmentType.label, textColor, secondaryTextColor)
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(scrollState),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        when (state.activeSection) {
+                            "BEAM" -> {
+                                Surface(color = textColor.copy(alpha = 0.05f), shape = MaterialTheme.shapes.medium) {
+                                    Row(modifier = Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Button(onClick = onTogglePlay, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppTheme.DarkPrimary)) {
+                                            Text(if (state.isRunning) "PAUSE" else "RUN", fontSize = 11.sp)
+                                        }
+                                        OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
+                                            Text("RESET", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                                LabSlider("Energy", state.beamEnergyGeV, onSetBeamEnergy, 1f..14f, "GeV", "%.1f", textColor, secondaryTextColor)
+                                
+                                // Show current selection summary
+                                Surface(color = textColor.copy(alpha = 0.05f), shape = MaterialTheme.shapes.small) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        InfoRow("SIDE A", state.selectedParticleA.name, textColor, secondaryTextColor)
+                                        InfoRow("SIDE B", state.selectedParticleB.name, textColor, secondaryTextColor)
+                                    }
+                                }
+                            }
+                            "PARTICLES" -> {
+                                Text("SIDE A CONFIGURATION", style = MaterialTheme.typography.labelSmall, color = secondaryTextColor)
+                                ParticleSelector(
+                                    selected = state.selectedParticleA,
+                                    onSelect = onSelectParticleA,
+                                    textColor = textColor
+                                )
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Text("SIDE B CONFIGURATION", style = MaterialTheme.typography.labelSmall, color = secondaryTextColor)
+                                ParticleSelector(
+                                    selected = state.selectedParticleB,
+                                    onSelect = onSelectParticleB,
+                                    textColor = textColor
+                                )
+                            }
+                            "PHYSICS" -> {
+                                LabSlider("Temporal Scale", state.speedMultiplier, onSetSpeed, 0.2f..3.0f, "x", "%.1f", textColor, secondaryTextColor)
+                                LabSlider("Decay Trails", state.trailLength.toDouble(), { onSetTrailLength(it.toInt()) }, 10f..500f, "px", "%.0f", textColor, secondaryTextColor)
+                                IconButton(onClick = onToggleTheme, modifier = Modifier.align(Alignment.End)) {
+                                    Text(if (isDark) "🌙 DARK" else "☀️ LIGHT", fontSize = 10.sp, color = textColor)
+                                }
+                            }
                         }
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Persistent Bottom Stats
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        color = textColor.copy(alpha = 0.03f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column {
+                                    Text("COLLISION ENERGY", style = MaterialTheme.typography.labelSmall, color = secondaryTextColor, fontSize = 8.sp)
+                                    Text("${state.beamEnergyGeV * 2} GeV", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black), color = AppTheme.DarkAccent)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("EVENT COUNT", style = MaterialTheme.typography.labelSmall, color = secondaryTextColor, fontSize = 8.sp)
+                                    Text("${state.particles.size}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black), color = textColor)
+                                }
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ParticleSelector(
+    selected: ParticleDefinition,
+    onSelect: (ParticleDefinition) -> Unit,
+    textColor: Color
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        ElementaryParticles.ALL_PARTICLES.forEach { p ->
+            FilterChip(
+                selected = selected.id == p.id,
+                onClick = { onSelect(p) },
+                label = { Text(p.name, fontSize = 9.sp) },
+                shape = MaterialTheme.shapes.extraSmall,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppTheme.DarkPrimary.copy(alpha = 0.3f),
+                    selectedLabelColor = textColor
+                )
+            )
         }
     }
 }

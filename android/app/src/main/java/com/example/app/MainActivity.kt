@@ -23,7 +23,6 @@ class MainActivity : ComponentActivity() {
             val viewModel: SimulationViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
             
-            // Sync physical orientation with manual override
             LaunchedEffect(uiState.forceLandscape) {
                 requestedOrientation = if (uiState.forceLandscape) {
                     ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -33,9 +32,8 @@ class MainActivity : ComponentActivity() {
             }
 
             val isDark = uiState.theme == "dark"
-            val bgColor = if (isDark) AppTheme.DarkBg else AppTheme.LightBg
+            val bgColor = uiState.customBgColor ?: if (isDark) AppTheme.DarkBg else AppTheme.LightBg
 
-            // Dynamic panel size based on expansion state
             val panelWidth by animateDpAsState(
                 targetValue = if (uiState.isPanelExpanded) 280.dp else 60.dp,
                 label = "Panel Expansion"
@@ -46,21 +44,20 @@ class MainActivity : ComponentActivity() {
                     darkColorScheme(
                         primary = AppTheme.DarkPrimary,
                         surface = AppTheme.DarkSurface,
-                        background = AppTheme.DarkBg,
+                        background = bgColor,
                         onSurface = AppTheme.DarkText
                     )
                 } else {
                     lightColorScheme(
                         primary = AppTheme.LightPrimary,
                         surface = AppTheme.LightSurface,
-                        background = AppTheme.LightBg,
+                        background = bgColor,
                         onSurface = AppTheme.LightText
                     )
                 }
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = bgColor) {
                     Row(modifier = Modifier.fillMaxSize()) {
-                        // Main Viewport
                         Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                             SimulationView(
                                 state = uiState,
@@ -69,18 +66,21 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         
-                        // Right-aligned Foldable Control Panel
                         ControlPanel(
                             state = uiState,
                             onTogglePlay = { viewModel.togglePlay() },
                             onReset = { viewModel.resetSimulation() },
                             onToggleTheme = { viewModel.toggleTheme() },
                             onToggleOrientation = { viewModel.toggleOrientation() },
-                            onSetBombardmentType = { viewModel.setBombardmentType(it) },
+                            onSetBgColor = { viewModel.setBgColor(it) },
+                            onSetActiveSection = { viewModel.setActiveSection(it) },
+                            onSelectParticleA = { viewModel.selectParticleA(it) },
+                            onSelectParticleB = { viewModel.selectParticleB(it) },
                             onSetBeamEnergy = { viewModel.setBeamEnergy(it) },
                             onSetTrailLength = { viewModel.setTrailLength(it) },
                             onSetSpeed = { viewModel.setSpeed(it) },
                             onTogglePanel = { viewModel.togglePanel() },
+                            onExit = { finish() },
                             modifier = Modifier.width(panelWidth)
                         )
                     }
