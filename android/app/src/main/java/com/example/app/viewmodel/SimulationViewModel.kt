@@ -14,7 +14,8 @@ data class SimulationState(
     val isRunning: Boolean = false,
     val theme: String = "dark",
     val layout: String = "vertical",
-    val trailLength: Int = 200
+    val trailLength: Int = 200,
+    val isLandscape: Boolean = false
 )
 
 class SimulationViewModel : ViewModel() {
@@ -45,6 +46,11 @@ class SimulationViewModel : ViewModel() {
 
     fun setTrailLength(length: Int) {
         _uiState.value = _uiState.value.copy(trailLength = length)
+    }
+
+    fun toggleOrientation() {
+        val next = !_uiState.value.isLandscape
+        _uiState.value = _uiState.value.copy(isLandscape = next)
     }
 
     private fun startSimulation() {
