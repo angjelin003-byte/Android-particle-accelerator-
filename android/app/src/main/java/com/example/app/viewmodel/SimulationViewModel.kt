@@ -2,12 +2,12 @@ package com.example.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.app.types.ParticleCategory
 import com.example.app.types.ParticleState
 import com.example.app.types.TrailPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlin.math.sqrt
 
 data class SimulationState(
     val particles: List<ParticleState> = emptyList(),
@@ -23,6 +23,50 @@ class SimulationViewModel : ViewModel() {
     val uiState: StateFlow<SimulationState> = _uiState
 
     private var simulationJob: Job? = null
+
+    init {
+        // Initialize with default particles to ensure valid initial state
+        _uiState.value = _uiState.value.copy(
+            particles = listOf(
+                ParticleState(
+                    id = "p1",
+                    definitionId = "proton",
+                    name = "Proton",
+                    symbol = "p",
+                    color = "#EF4444",
+                    category = ParticleCategory.BARYON,
+                    x = -100.0, y = 0.0, z = 0.0,
+                    vx = 5.0, vy = 0.0, vz = 0.0,
+                    mass = 938.27, charge = 1.0,
+                    beta = 0.99, gamma = 7.0,
+                    px = 4691.0, py = 0.0, pz = 0.0, pTotal = 4691.0,
+                    energy = 5629.0, kineticEnergy = 4691.0,
+                    radius = 8.0,
+                    trail = emptyList(),
+                    isPrimaryBeam = "A",
+                    isReactionProduct = false
+                ),
+                ParticleState(
+                    id = "p2",
+                    definitionId = "proton",
+                    name = "Proton",
+                    symbol = "p",
+                    color = "#3B82F6",
+                    category = ParticleCategory.BARYON,
+                    x = 100.0, y = 0.0, z = 0.0,
+                    vx = -5.0, vy = 0.0, vz = 0.0,
+                    mass = 938.27, charge = 1.0,
+                    beta = 0.99, gamma = 7.0,
+                    px = -4691.0, py = 0.0, pz = 0.0, pTotal = 4691.0,
+                    energy = 5629.0, kineticEnergy = 4691.0,
+                    radius = 8.0,
+                    trail = emptyList(),
+                    isPrimaryBeam = "B",
+                    isReactionProduct = false
+                )
+            )
+        )
+    }
 
     fun togglePlay() {
         val running = !_uiState.value.isRunning
@@ -56,7 +100,6 @@ class SimulationViewModel : ViewModel() {
     private fun startSimulation() {
         simulationJob = viewModelScope.launch(Dispatchers.Default) {
             while (isActive) {
-                // Simplified simulation step
                 val updatedParticles = _uiState.value.particles.map { p ->
                     p.copy(
                         x = p.x + p.vx * 1.0,
@@ -66,7 +109,7 @@ class SimulationViewModel : ViewModel() {
                 }
                 
                 _uiState.value = _uiState.value.copy(particles = updatedParticles)
-                delay(16) // ~60 FPS
+                delay(16)
             }
         }
     }

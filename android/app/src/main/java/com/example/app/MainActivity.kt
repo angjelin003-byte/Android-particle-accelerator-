@@ -30,13 +30,6 @@ class MainActivity : ComponentActivity() {
             val viewModel: SimulationViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
 
-            // Update screen orientation based on state
-            requestedOrientation = if (uiState.isLandscape) {
-                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            } else {
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            }
-
             MaterialTheme(colorScheme = if (uiState.theme == "dark") darkColorScheme() else lightColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     Column(
@@ -55,7 +48,14 @@ class MainActivity : ComponentActivity() {
                             onToggleTheme = { viewModel.toggleTheme() },
                             onSetLayout = { viewModel.setLayout(it) },
                             onSetTrailLength = { viewModel.setTrailLength(it) },
-                            onToggleOrientation = { viewModel.toggleOrientation() }
+                            onToggleOrientation = {
+                                viewModel.toggleOrientation()
+                                requestedOrientation = if (!uiState.isLandscape) {
+                                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                } else {
+                                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                }
+                            }
                         )
                     }
                 }
