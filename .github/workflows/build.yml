@@ -27,41 +27,135 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Configure Gradle Environment & Cleanup Repositories
+      - name: Resolve Conflicting Scripts & Prepare Clean Build
         run: |
+          echo "=== 1. Removing any conflicting Groovy files (.gradle) ==="
+          find . -name "build.gradle" -type f -delete
+          find . -name "settings.gradle" -type f -delete
+          rm -f android/settings.gradle.kts
+
+          echo "=== 2. Writing pristine root settings.gradle.kts ==="
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "RelativisticParticleCollider"
+          include(":app")
+          project(":app").projectDir = file("android/app")
+          EOF
+
+          echo "=== 3. Writing pristine root build.gradle.kts ==="
+          cat << 'EOF' > build.gradle.kts
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath("com.android.tools.build:gradle:8.2.2")
+                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22")
+              }
+          }
+          tasks.register<Delete>("clean") {
+              delete(rootProject.layout.buildDirectory)
+          }
+          EOF
+
+          echo "=== 4. Writing pristine android/app/build.gradle.kts ==="
+          mkdir -p android/app
+          cat << 'EOF' > android/app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.relativistic.particlecollider"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.relativistic.particlecollider"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0.0"
+
+                  testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+              }
+
+              buildTypes {
+                  debug {
+                      isDebuggable = true
+                      applicationIdSuffix = ".debug"
+                      versionNameSuffix = "-debug"
+                  }
+                  release {
+                      isMinifyEnabled = false
+                      proguardFiles(
+                          getDefaultProguardFile("proguard-android-optimize.txt"),
+                          "proguard-rules.pro"
+                      )
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+
+              buildFeatures {
+                  viewBinding = false
+              }
+
+              sourceSets {
+                  getByName("main") {
+                      assets.srcDirs("src/main/assets")
+                  }
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation("com.google.android.material:material:1.11.0")
+              implementation("androidx.webkit:webkit:1.10.0")
+          }
+          EOF
+
+          echo "=== 5. Ensuring Gradle wrapper binaries exist ==="
           mkdir -p gradle/wrapper android/gradle/wrapper
-          
-          # Automatically downloads the missing gradle-wrapper.jar
           if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
             curl -sSL "https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar || gradle wrapper --gradle-version 8.5
           fi
-          
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
-            cp gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
-          fi
+          cp -f gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
 
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-          fi
-          if [ -f android/gradlew ]; then
-            chmod +x android/gradlew
-          fi
+          if [ -f gradlew ]; then chmod +x gradlew; fi
+          if [ -f android/gradlew ]; then chmod +x android/gradlew; fi
 
-          # Switch FAIL_ON_PROJECT_REPOS to PREFER_SETTINGS to prevent repository conflicts
-          find . -name "settings.gradle*" -exec sed -i 's/FAIL_ON_PROJECT_REPOS/PREFER_SETTINGS/g' {} +
+          echo "=== 6. Accepting Android SDK Licenses ==="
+          yes | sdkmanager --licenses || true
 
-          # Remove redundant allprojects repository blocks
-          find . -name "build.gradle.kts" -exec sed -i '/allprojects[[:space:]]*{/,/^[[:space:]]*}/d' {} +
-          find . -name "build.gradle" -exec sed -i '/allprojects[[:space:]]*{/,/^[[:space:]]*}/d' {} +
-
-      - name: Build with Gradle & Kotlin
+      - name: Build Android Debug APK
         run: |
-          if [ -f gradlew ] && [ -f gradle/wrapper/gradle-wrapper.jar ]; then
-            ./gradlew assembleDebug --stacktrace
-          elif [ -f android/gradlew ] && [ -f android/gradle/wrapper/gradle-wrapper.jar ]; then
-            cd android && ./gradlew assembleDebug --stacktrace
+          if [ -f gradlew ]; then
+            ./gradlew :app:assembleDebug --stacktrace
           else
-            gradle assembleDebug --stacktrace
+            gradle :app:assembleDebug --stacktrace
           fi
 
       - name: Locate Generated APK
