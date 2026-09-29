@@ -1,7 +1,6 @@
 {
   "name": "relativistic-particle-collider",
   "version": "1.0.0",
-  "type": "module",
   "description": "Interactive 3D Relativistic Particle Collider Android App",
   "main": "server.ts",
   "scripts": {
