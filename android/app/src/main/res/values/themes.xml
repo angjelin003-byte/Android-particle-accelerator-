@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.AppCompat.NoActionBar" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.ParticleCollider" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:statusBarColor">#07090E</item>
         <item name="android:navigationBarColor">#07090E</item>
         <item name="android:windowBackground">#07090E</item>
+        <item name="colorPrimary">#6366F1</item>
+        <item name="colorSecondary">#06B6D4</item>
     </style>
 </resources>

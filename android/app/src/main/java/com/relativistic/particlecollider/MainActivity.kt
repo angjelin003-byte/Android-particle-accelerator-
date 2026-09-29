@@ -1,79 +1,110 @@
 package com.relativistic.particlecollider
 
 import android.annotation.SuppressLint
-import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.WindowInsetsController
-import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.webkit.WebViewAssetLoader
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var webView: WebView
+    private var webView: WebView? = null
+    private val TAG = "ParticleCollider"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Dark laboratory background
-        window.statusBarColor = Color.parseColor("#07090E")
-        window.navigationBarColor = Color.parseColor("#07090E")
+        try {
+            // Apply dark system bar styling safely
+            window.statusBarColor = Color.parseColor("#07090E")
+            window.navigationBarColor = Color.parseColor("#07090E")
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.setSystemBarsAppearance(
-                0,
-                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-            )
-        }
-
-        // Hardware acceleration enabled for high-performance WebGL 3D rendering
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
-            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        )
-
-        webView = WebView(this).apply {
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            setBackgroundColor(Color.parseColor("#07090E"))
-        }
-        setContentView(webView)
-
-        configureWebSettings(webView.settings)
-
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.setSystemBarsAppearance(
+                    0,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                )
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not set status bar colors", e)
         }
 
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                return super.onConsoleMessage(consoleMessage)
+        try {
+            val wv = WebView(this).apply {
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                setBackgroundColor(Color.parseColor("#07090E"))
             }
-        }
+            webView = wv
+            setContentView(wv)
 
-        // Handle Back button
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                } else {
-                    finish()
+            configureWebSettings(wv.settings)
+
+            // Setup WebViewAssetLoader to serve assets over https://appassets.androidplatform.net
+            // This eliminates file:/// CORS issues and enables modern ES Modules & WebGL
+            val assetLoader = WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+                .build()
+
+            wv.webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    request?.url?.let { uri ->
+                        val response = assetLoader.shouldInterceptRequest(uri)
+                        if (response != null) return response
+                    }
+                    return super.shouldInterceptRequest(view, request)
                 }
             }
-        })
 
-        // Load the React SPA built into assets
-        webView.loadUrl("file:///android_asset/index.html")
+            wv.webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                    consoleMessage?.let {
+                        Log.d(TAG, "WebView Console [${it.messageLevel()}]: ${it.message()} -- From line ${it.lineNumber()} of ${it.sourceId()}")
+                    }
+                    return super.onConsoleMessage(consoleMessage)
+                }
+            }
+
+            // Handle Back button navigation
+            onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (wv.canGoBack()) {
+                        wv.goBack()
+                    } else {
+                        finish()
+                    }
+                }
+            })
+
+            // Load the application securely via WebViewAssetLoader domain
+            wv.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+
+        } catch (e: Throwable) {
+            Log.e(TAG, "Fatal error initializing WebView", e)
+            val errorView = TextView(this).apply {
+                text = "Failed to launch simulation engine: ${e.message}\nPlease ensure Android System WebView is updated."
+                setTextColor(Color.WHITE)
+                setBackgroundColor(Color.parseColor("#07090E"))
+                setPadding(50, 100, 50, 50)
+            }
+            setContentView(errorView)
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -96,16 +127,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        webView.onResume()
+        webView?.onResume()
     }
 
     override fun onPause() {
         super.onPause()
-        webView.onPause()
+        webView?.onPause()
     }
 
     override fun onDestroy() {
-        webView.destroy()
+        webView?.destroy()
         super.onDestroy()
     }
 }
