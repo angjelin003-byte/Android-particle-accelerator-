@@ -39,19 +39,17 @@ class MainActivity : ComponentActivity() {
             val isDark = uiState.theme == "dark"
             val bgColor = uiState.customBgColor ?: if (isDark) AppTheme.DarkBg else AppTheme.LightBg
 
-            // Calculate 35% of screen dimensions
             val screenWidth = configuration.screenWidthDp.dp
             val screenHeight = configuration.screenHeightDp.dp
             
             val targetPanelWidth = screenWidth * 0.35f
             val targetPanelHeight = screenHeight * 0.35f
 
-            // Dynamic panel size based on expansion state and orientation
             val panelDim by animateDpAsState(
                 targetValue = if (uiState.isPanelExpanded) {
                     if (isLandscape) targetPanelWidth else targetPanelHeight
                 } else {
-                    60.dp // Collapsed size
+                    60.dp 
                 },
                 label = "Panel Dimension"
             )
@@ -102,7 +100,6 @@ class MainActivity : ComponentActivity() {
                                 onSetSpeed = { viewModel.setSpeed(it) },
                                 onSetMaxParticles = { viewModel.setMaxParticles(it) },
                                 onSetMagneticField = { viewModel.setMagneticField(it) },
-                                onSetForceScale = { f, s -> viewModel.setForceScale(f, s) },
                                 onTogglePanel = { viewModel.togglePanel() },
                                 onExit = { finish() },
                                 modifier = Modifier.width(panelDim).fillMaxHeight()
@@ -136,7 +133,6 @@ class MainActivity : ComponentActivity() {
                                 onSetSpeed = { viewModel.setSpeed(it) },
                                 onSetMaxParticles = { viewModel.setMaxParticles(it) },
                                 onSetMagneticField = { viewModel.setMagneticField(it) },
-                                onSetForceScale = { f, s -> viewModel.setForceScale(f, s) },
                                 onTogglePanel = { viewModel.togglePanel() },
                                 onExit = { finish() },
                                 modifier = Modifier.fillMaxWidth().height(panelDim)

@@ -15,6 +15,8 @@ class SimulationViewModel : ViewModel() {
     val uiState: StateFlow<SimulationState> = _uiState
     private var simulationJob: Job? = null
 
+    private val SUB_STEPS = 8 
+
     init {
         resetSimulation()
     }
@@ -82,16 +84,6 @@ class SimulationViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(magneticFieldTesla = tesla)
     }
 
-    fun setForceScale(force: String, scale: Double) {
-        _uiState.value = when(force) {
-            "STRONG" -> _uiState.value.copy(strongForceScale = scale)
-            "WEAK" -> _uiState.value.copy(weakForceScale = scale)
-            "EM" -> _uiState.value.copy(emForceScale = scale)
-            "GRAVITY" -> _uiState.value.copy(gravityScale = scale)
-            else -> _uiState.value
-        }
-    }
-
     fun selectParticle(id: String?) {
         _uiState.value = _uiState.value.copy(selectedParticleId = id)
     }
@@ -131,15 +123,10 @@ class SimulationViewModel : ViewModel() {
             return ParticleState(
                 id = "beam_$side",
                 definition = def,
-                x = x,
-                y = 0.0,
-                z = 0.0,
+                x = x, y = 0.0, z = 0.0,
                 vx = if (side == "A") beta * 8.0 else -beta * 8.0,
-                vy = 0.0,
-                vz = 0.0,
-                beta = beta,
-                gamma = gamma,
-                energy = totalE,
+                vy = 0.0, vz = 0.0,
+                beta = beta, gamma = gamma, energy = totalE,
                 trail = emptyList(),
                 isPrimaryBeam = side,
                 colorCharge = if (def.hasColorCharge) (1..3).random() else 0
@@ -159,150 +146,111 @@ class SimulationViewModel : ViewModel() {
     private fun startSimulation() {
         simulationJob?.cancel()
         simulationJob = viewModelScope.launch(Dispatchers.Default) {
-            val dt = 0.016
+            val totalFrameDt = 0.016
+            val dt = totalFrameDt / SUB_STEPS
             
             while (isActive) {
                 val state = _uiState.value
                 if (!state.isRunning) break
                 
+                var currentFrameParticles = state.particles.toMutableList()
                 var collided = false
-                val updated = mutableListOf<ParticleState>()
-                val newParticles = mutableListOf<ParticleState>()
+                val collisionNewParticles = mutableListOf<ParticleState>()
 
-                // Calculate all forces O(N^2) for EM and Gravity (limited N)
-                val currentParticles = state.particles
-                val accelerations = Array(currentParticles.size) { doubleArrayOf(0.0, 0.0, 0.0) }
+                repeat(SUB_STEPS) {
+                    val stepNewParticles = mutableListOf<ParticleState>()
+                    val stepUpdated = mutableListOf<ParticleState>()
+                    val accelerations = Array(currentFrameParticles.size) { doubleArrayOf(0.0, 0.0, 0.0) }
 
-                for (i in currentParticles.indices) {
-                    val pi = currentParticles[i]
-                    if (pi.annihilated) continue
+                    for (i in currentFrameParticles.indices) {
+                        val pi = currentFrameParticles[i]
+                        if (pi.annihilated) continue
 
-                    // 1. External B-Field (EM - Lorentz)
-                    val q = pi.definition.charge
-                    val forceConstant = if (pi.definition.massMeV > 0) (q / pi.definition.massMeV) * state.magneticFieldTesla * 1000.0 else 0.0
-                    accelerations[i][0] += pi.vy * forceConstant
-                    accelerations[i][1] -= pi.vx * forceConstant
+                        // Lorentz Force (External Detector Field)
+                        val q = pi.definition.charge
+                        val bForce = if (pi.definition.massMeV > 0) (q / pi.definition.massMeV) * state.magneticFieldTesla * 1000.0 else 0.0
+                        accelerations[i][0] += pi.vy * bForce
+                        accelerations[i][1] -= pi.vx * bForce
 
-                    // 2. Pairwise forces (EM, Gravity, Strong)
-                    for (j in i + 1 until currentParticles.size) {
-                        val pj = currentParticles[j]
-                        if (pj.annihilated) continue
+                        // Pairwise Fundamental Forces (Internal Particle Physics)
+                        for (j in i + 1 until currentFrameParticles.size) {
+                            val pj = currentFrameParticles[j]
+                            if (pj.annihilated) continue
 
-                        val dx = pj.x - pi.x
-                        val dy = pj.y - pi.y
-                        val dz = pj.z - pi.z
-                        val distSq = dx*dx + dy*dy + dz*dz + 100.0 // Softening factor
-                        val dist = sqrt(distSq)
+                            val dx = pj.x - pi.x
+                            val dy = pj.y - pi.y
+                            val dz = pj.z - pi.z
+                            val distSq = dx*dx + dy*dy + dz*dz + 100.0
+                            val dist = sqrt(distSq)
 
-                        // 2a. Electromagnetism (Coulomb: q1*q2 / r^2)
-                        if (state.emForceScale > 0) {
-                            val emMag = (pi.definition.charge * pj.definition.charge * 5000.0 * state.emForceScale) / distSq
-                            val ax = (dx / dist) * emMag
-                            val ay = (dy / dist) * emMag
-                            val az = (dz / dist) * emMag
-                            
-                            accelerations[i][0] -= ax / max(1.0, pi.definition.massMeV)
-                            accelerations[i][1] -= ay / max(1.0, pi.definition.massMeV)
-                            accelerations[i][2] -= az / max(1.0, pi.definition.massMeV)
-                            accelerations[j][0] += ax / max(1.0, pj.definition.massMeV)
-                            accelerations[j][1] += ay / max(1.0, pj.definition.massMeV)
-                            accelerations[j][2] += az / max(1.0, pj.definition.massMeV)
-                        }
+                            // 1. Electromagnetism (Coulomb) - Alpha ~ 1/137
+                            val emMag = (pi.definition.charge * pj.definition.charge * 5000.0) / distSq
+                            applyForce(accelerations, i, j, dx/dist, dy/dist, dz/dist, emMag, pi.definition.massMeV, pj.definition.massMeV, repulsive = true)
 
-                        // 2b. Gravity (m1*m2 / r^2) - Scale heavily for visibility
-                        if (state.gravityScale > 0) {
-                            val gMag = (pi.definition.massMeV * pj.definition.massMeV * 0.00001 * state.gravityScale) / distSq
-                            val ax = (dx / dist) * gMag
-                            val ay = (dy / dist) * gMag
-                            val az = (dz / dist) * gMag
-                            
-                            accelerations[i][0] += ax / max(1.0, pi.definition.massMeV)
-                            accelerations[i][1] += ay / max(1.0, pi.definition.massMeV)
-                            accelerations[i][2] += az / max(1.0, pi.definition.massMeV)
-                            accelerations[j][0] -= ax / max(1.0, pj.definition.massMeV)
-                            accelerations[j][1] -= ay / max(1.0, pj.definition.massMeV)
-                            accelerations[j][2] -= az / max(1.0, pj.definition.massMeV)
-                        }
-
-                        // 2c. Strong Force (Spring-like confinement for color-charged)
-                        if (state.strongForceScale > 0 && pi.definition.hasColorCharge && pj.definition.hasColorCharge) {
-                            // Confinement: Force increases or stays constant with distance
-                            // Simplified: Spring force if dist > 50
-                            if (dist > 50.0) {
-                                val strongMag = (dist - 50.0) * 0.05 * state.strongForceScale
-                                val ax = (dx / dist) * strongMag
-                                val ay = (dy / dist) * strongMag
-                                val az = (dz / dist) * strongMag
-                                
-                                accelerations[i][0] += ax / max(1.0, pi.definition.massMeV)
-                                accelerations[i][1] += ay / max(1.0, pi.definition.massMeV)
-                                accelerations[i][2] += az / max(1.0, pi.definition.massMeV)
-                                accelerations[j][0] -= ax / max(1.0, pj.definition.massMeV)
-                                accelerations[j][1] -= ay / max(1.0, pj.definition.massMeV)
-                                accelerations[j][2] -= az / max(1.0, pj.definition.massMeV)
-                                
-                                // String snap (hadronization)
-                                if (dist > 250.0 && Random.nextDouble() < 0.05 * state.strongForceScale) {
-                                    // Produce new quark pair at the center
-                                    val midX = (pi.x + pj.x) / 2.0
-                                    val midY = (pi.y + pj.y) / 2.0
-                                    val midZ = (pi.z + pj.z) / 2.0
-                                    newParticles.addAll(produceQuarkPair(midX, midY, midZ))
+                            // 2. Strong Force (Color Confinement) - Alpha_s ~ 1.0
+                            if (pi.definition.hasColorCharge && pj.definition.hasColorCharge) {
+                                if (dist > 50.0) {
+                                    val strongMag = (dist - 50.0) * 0.05
+                                    applyForce(accelerations, i, j, dx/dist, dy/dist, dz/dist, strongMag, pi.definition.massMeV, pj.definition.massMeV, repulsive = false)
+                                    
+                                    if (dist > 250.0 && Random.nextDouble() < 0.005) {
+                                        stepNewParticles.addAll(produceQuarkPair((pi.x + pj.x)/2.0, (pi.y + pj.y)/2.0, (pi.z + pj.z)/2.0))
+                                    }
                                 }
                             }
+                            
+                            // Note: Gravity and Weak force are either too weak (10^-39) to matter 
+                            // at this scale or represented by decay lifetimes (Weak).
                         }
                     }
-                }
 
-                // Update velocities and positions with more stable integration
-                for (i in currentParticles.indices) {
-                    val p = currentParticles[i]
-                    if (p.annihilated) continue
+                    for (i in currentFrameParticles.indices) {
+                        val p = currentFrameParticles[i]
+                        if (p.annihilated) continue
 
-                    // Limit particle count in simulation processing
-                    if (updated.size + newParticles.size >= state.maxParticles) {
-                        updated.add(p)
-                        continue
+                        val nvx = p.vx + accelerations[i][0] * dt * state.speedMultiplier * 60.0
+                        val nvy = p.vy + accelerations[i][1] * dt * state.speedMultiplier * 60.0
+                        val nvz = p.vz + accelerations[i][2] * dt * state.speedMultiplier * 60.0
+                        
+                        val nx = p.x + nvx * dt * 60.0 * state.speedMultiplier
+                        val ny = p.y + nvy * dt * 60.0 * state.speedMultiplier
+                        val nz = p.z + nvz * dt * 60.0 * state.speedMultiplier
+                        
+                        var isDecaying = false
+                        if (!p.definition.isStable && p.isPrimaryBeam == null) {
+                            // Weak Force interaction via stochastic decay
+                            val decayProb = 1.0 - exp(-dt * state.speedMultiplier * 0.1 / (max(1.0, p.gamma) * max(0.0001, p.definition.lifetimeNs)))
+                            if (Random.nextDouble() < decayProb) isDecaying = true
+                        }
+
+                        if (isDecaying) {
+                            stepNewParticles.addAll(decayParticle(p))
+                            currentFrameParticles[i] = p.copy(annihilated = true)
+                        } else {
+                            val newTrail = if (it == 0) (p.trail + TrailPoint(p.x, p.y, p.z)).takeLast(state.trailLength) else p.trail
+                            stepUpdated.add(p.copy(x = nx, y = ny, z = nz, vx = nvx, vy = nvy, vz = nvz, trail = newTrail))
+                        }
                     }
 
-                    val nvx = p.vx + accelerations[i][0] * dt * state.speedMultiplier
-                    val nvy = p.vy + accelerations[i][1] * dt * state.speedMultiplier
-                    val nvz = p.vz + accelerations[i][2] * dt * state.speedMultiplier
-                    
-                    val nx = p.x + nvx * dt * 60.0 * state.speedMultiplier // Normalized to ~60fps
-                    val ny = p.y + nvy * dt * 60.0 * state.speedMultiplier
-                    val nz = p.z + nvz * dt * 60.0 * state.speedMultiplier
-                    
-                    // Weak Force (Decay)
-                    var isDecaying = false
-                    if (!p.definition.isStable && p.isPrimaryBeam == null) {
-                        val tau = p.definition.lifetimeNs
-                        val decayProb = 1.0 - exp(-dt * state.speedMultiplier * 0.1 * state.weakForceScale / (max(1.0, p.gamma) * max(0.0001, tau)))
-                        if (Random.nextDouble() < decayProb) isDecaying = true
+                    val a = stepUpdated.find { it.isPrimaryBeam == "A" }
+                    val b = stepUpdated.find { it.isPrimaryBeam == "B" }
+                    if (a != null && b != null && !collided) {
+                        val dist = sqrt((a.x - b.x).pow(2) + (a.y - b.y).pow(2) + (a.z - b.z).pow(2))
+                        if (dist < 20.0) {
+                            collided = true
+                            collisionNewParticles.addAll(generateProducts(a, b))
+                            stepUpdated.forEachIndexed { idx, p -> if (p.isPrimaryBeam != null) stepUpdated[idx] = p.copy(annihilated = true) }
+                        }
                     }
 
-                    if (isDecaying) {
-                        newParticles.addAll(decayParticle(p))
-                    } else {
-                        val newTrail = (p.trail + TrailPoint(p.x, p.y, p.z)).takeLast(state.trailLength)
-                        updated.add(p.copy(x = nx, y = ny, z = nz, vx = nvx, vy = nvy, vz = nvz, trail = newTrail))
-                    }
-                }
-
-                // Collision Logic
-                val a = updated.find { it.isPrimaryBeam == "A" }
-                val b = updated.find { it.isPrimaryBeam == "B" }
-                if (a != null && b != null && !collided) {
-                    val dist = sqrt((a.x - b.x).pow(2) + (a.y - b.y).pow(2) + (a.z - b.z).pow(2))
-                    if (dist < 20.0) {
-                        collided = true
-                        newParticles.addAll(generateProducts(a, b))
-                        updated.forEachIndexed { i, p -> if (p.isPrimaryBeam != null) updated[i] = p.copy(annihilated = true) }
+                    currentFrameParticles = (stepUpdated.filter { !it.annihilated } + stepNewParticles).toMutableList()
+                    if (currentFrameParticles.size > state.maxParticles) {
+                        currentFrameParticles = currentFrameParticles.take(state.maxParticles).toMutableList()
                     }
                 }
 
                 _uiState.value = _uiState.value.copy(
-                    particles = (updated.filter { !it.annihilated } + newParticles)
+                    particles = currentFrameParticles + collisionNewParticles
                 )
                 
                 delay(16)
@@ -310,32 +258,78 @@ class SimulationViewModel : ViewModel() {
         }
     }
 
+    private fun applyForce(acc: Array<DoubleArray>, i: Int, j: Int, dx: Double, dy: Double, dz: Double, mag: Double, mi: Double, mj: Double, repulsive: Boolean) {
+        val sign = if (repulsive) -1.0 else 1.0
+        val ax = dx * mag * sign
+        val ay = dy * mag * sign
+        val az = dz * mag * sign
+        
+        acc[i][0] += ax / max(1.0, mi)
+        acc[i][1] += ay / max(1.0, mi)
+        acc[i][2] += az / max(1.0, mi)
+        acc[j][0] -= ax / max(1.0, mj)
+        acc[j][1] -= ay / max(1.0, mj)
+        acc[j][2] -= az / max(1.0, mj)
+    }
+
     private fun produceQuarkPair(x: Double, y: Double, z: Double): List<ParticleState> {
         val q1 = ElementaryParticles.UP
         val q2 = ElementaryParticles.DOWN
+        val speed = 2.0
+        val phi = Random.nextDouble(0.0, 2 * PI)
         return listOf(
-            ParticleState("snap_${Random.nextLong()}", q1, x, y, z, (Random.nextDouble()-0.5)*5, (Random.nextDouble()-0.5)*5, (Random.nextDouble()-0.5)*5, 0.0, 1.0, q1.massMeV, emptyList(), colorCharge = 1),
-            ParticleState("snap_${Random.nextLong()}", q2, x, y, z, (Random.nextDouble()-0.5)*5, (Random.nextDouble()-0.5)*5, (Random.nextDouble()-0.5)*5, 0.0, 1.0, q2.massMeV, emptyList(), colorCharge = 2)
+            ParticleState("snap_${Random.nextLong()}", q1, x, y, z, cos(phi)*speed, sin(phi)*speed, 0.0, 0.0, 1.0, q1.massMeV, emptyList(), colorCharge = 1),
+            ParticleState("snap_${Random.nextLong()}", q2, x, y, z, -cos(phi)*speed, -sin(phi)*speed, 0.0, 0.0, 1.0, q2.massMeV, emptyList(), colorCharge = 2)
         )
     }
 
     private fun decayParticle(p: ParticleState): List<ParticleState> {
         val products = mutableListOf<ParticleState>()
         val rnd = Random
-        val def = p.definition
-        val targets = when (def.id) {
+        val targets = when (p.definition.id) {
             "h" -> listOf(ElementaryParticles.PHOTON, ElementaryParticles.PHOTON)
-            "z" -> listOf(ElementaryParticles.MUON, ElementaryParticles.POSITRON)
-            "mu" -> listOf(ElementaryParticles.ELECTRON)
-            "tau" -> listOf(ElementaryParticles.MUON)
+            "z" -> listOf(ElementaryParticles.ELECTRON, ElementaryParticles.POSITRON)
+            "mu" -> listOf(ElementaryParticles.ELECTRON, ElementaryParticles.PHOTON)
+            "tau" -> listOf(ElementaryParticles.MUON, ElementaryParticles.PHOTON)
             "pi" -> listOf(ElementaryParticles.PHOTON, ElementaryParticles.PHOTON)
             "t" -> listOf(ElementaryParticles.W_PLUS, ElementaryParticles.BOTTOM)
             else -> listOf(ElementaryParticles.PHOTON)
         }
-        for ((i, tDef) in targets.withIndex()) {
-            val angle = rnd.nextDouble(0.0, 2 * PI)
-            val vSpread = 1.0 + rnd.nextDouble(0.0, 2.0)
-            products.add(p.copy(id = "decay_${p.id}_$i", definition = tDef, vx = p.vx * 0.5 + cos(angle) * vSpread, vy = p.vy * 0.5 + sin(angle) * vSpread, vz = p.vz * 0.5 + (rnd.nextDouble() - 0.5) * vSpread, trail = emptyList(), isPrimaryBeam = null, birthTimeMs = System.currentTimeMillis()))
+        
+        var totalPx = 0.0
+        var totalPy = 0.0
+        var totalPz = 0.0
+        
+        for (i in targets.indices) {
+            val tDef = targets[i]
+            val speed = 2.0 + rnd.nextDouble(0.0, 3.0)
+            val theta = rnd.nextDouble(0.0, PI)
+            val phi = rnd.nextDouble(0.0, 2 * PI)
+            
+            var vx = speed * sin(theta) * cos(phi)
+            var vy = speed * sin(theta) * sin(phi)
+            var vz = speed * cos(theta)
+            
+            if (i == targets.size - 1) {
+                vx = -totalPx
+                vy = -totalPy
+                vz = -totalPz
+            } else {
+                totalPx += vx
+                totalPy += vy
+                totalPz += vz
+            }
+
+            products.add(p.copy(
+                id = "decay_${p.id}_$i", 
+                definition = tDef, 
+                vx = p.vx + vx, 
+                vy = p.vy + vy, 
+                vz = p.vz + vz, 
+                trail = emptyList(), 
+                isPrimaryBeam = null, 
+                birthTimeMs = System.currentTimeMillis()
+            ))
         }
         return products
     }
@@ -347,40 +341,58 @@ class SimulationViewModel : ViewModel() {
         val maxRoom = _uiState.value.maxParticles - _uiState.value.particles.size
         if (maxRoom <= 0) return emptyList()
 
-        // Yield scales with energy, but capped by maxRoom
-        val count = (15 + rnd.nextInt(10) * (totalEnergyMeV / 2000.0).toInt()).coerceAtMost(maxRoom).coerceAtMost(80)
+        val count = (15 + (totalEnergyMeV / 1000.0).toInt() * 5).coerceAtMost(maxRoom).coerceAtMost(60)
         
-        // Distribution based on available energy
+        var netCharge = a.definition.charge + b.definition.charge
+        var totalPx = 0.0
+        var totalPy = 0.0
+        var totalPz = 0.0
         var remainingEnergy = totalEnergyMeV
-        
+
         for (i in 0 until count) {
-            // Filter pool by remaining energy to ensure realistic production
-            val possiblePool = ElementaryParticles.ALL_PARTICLES.filter { it.massMeV <= remainingEnergy * 0.8 }
+            val possiblePool = ElementaryParticles.ALL_PARTICLES.filter { it.massMeV <= remainingEnergy * 0.5 }
             if (possiblePool.isEmpty()) break
             
-            val def = possiblePool[rnd.nextInt(possiblePool.size)]
+            val def = if (i == count - 1) {
+                ElementaryParticles.ALL_PARTICLES.find { abs(it.charge + netCharge) < 0.1 } ?: possiblePool[rnd.nextInt(possiblePool.size)]
+            } else {
+                possiblePool[rnd.nextInt(possiblePool.size)]
+            }
+            
+            netCharge -= def.charge
             remainingEnergy -= def.massMeV
             
-            // Isotropic distribution for products (center of mass frame)
-            val theta = rnd.nextDouble(0.0, PI)
-            val phi = rnd.nextDouble(0.0, 2 * PI)
+            var vx: Double
+            var vy: Double
+            var vz: Double
             
-            // Speed based on available kinetic energy
-            val kineticFactor = (remainingEnergy / totalEnergyMeV).coerceIn(0.1, 1.0)
-            val speed = (2.0 + rnd.nextDouble(1.0, 8.0)) * kineticFactor
+            if (i == count - 1) {
+                vx = -totalPx
+                vy = -totalPy
+                vz = -totalPz
+            } else {
+                val pt = rnd.nextDouble(0.0, 5.0)
+                val phi = rnd.nextDouble(0.0, 2 * PI)
+                vx = pt * cos(phi)
+                vy = pt * sin(phi)
+                vz = (rnd.nextDouble() - 0.5) * 10.0
+                
+                totalPx += vx
+                totalPy += vy
+                totalPz += vz
+            }
             
+            val speedSq = vx*vx + vy*vy + vz*vz
+            val gamma = 1.0 + (speedSq / 100.0)
+
             list.add(ParticleState(
                 id = "prod_${System.currentTimeMillis()}_$i",
                 definition = def,
                 x = (a.x + b.x) / 2.0,
                 y = (a.y + b.y) / 2.0,
                 z = (a.z + b.z) / 2.0,
-                vx = speed * sin(theta) * cos(phi),
-                vy = speed * sin(theta) * sin(phi),
-                vz = speed * cos(theta),
-                beta = 0.0, 
-                gamma = 1.0 + (speed.pow(2) / 100.0), // Simplified gamma for visual decay dilation
-                energy = def.massMeV,
+                vx = vx, vy = vy, vz = vz,
+                beta = 0.0, gamma = gamma, energy = def.massMeV,
                 trail = emptyList(),
                 isPrimaryBeam = null,
                 colorCharge = if (def.hasColorCharge) (1..3).random() else 0

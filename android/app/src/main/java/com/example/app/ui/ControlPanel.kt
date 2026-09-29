@@ -39,7 +39,6 @@ fun ControlPanel(
     onSetSpeed: (Double) -> Unit,
     onSetMaxParticles: (Int) -> Unit,
     onSetMagneticField: (Double) -> Unit,
-    onSetForceScale: (String, Double) -> Unit,
     onTogglePanel: () -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier
@@ -95,15 +94,12 @@ fun ControlPanel(
                 
                 if (state.isPanelExpanded) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Execution Controls
                         IconButton(onClick = onTogglePlay) {
                             Icon(if (state.isRunning) Icons.Default.Close else Icons.Default.PlayArrow, tint = AppTheme.DarkPrimary, contentDescription = "Play/Pause")
                         }
                         IconButton(onClick = onReset) {
                             Icon(Icons.Default.Refresh, tint = textColor, contentDescription = "Reset")
                         }
-                        
-                        // Theme & Mode
                         IconButton(onClick = onToggleTheme) {
                             Icon(if (isDark) Icons.Default.Build else Icons.Default.Settings, tint = AppTheme.DarkAccent, contentDescription = "Theme")
                         }
@@ -125,7 +121,6 @@ fun ControlPanel(
                 Column(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
                 ) {
-                    // Subpanel Navigation
                     TabRow(
                         selectedTabIndex = when(state.activeSection) { "BEAM" -> 0; "PARTICLES" -> 1; "PHYSICS" -> 2; else -> 0 },
                         containerColor = Color.Transparent,
@@ -150,7 +145,6 @@ fun ControlPanel(
                         when (state.activeSection) {
                             "BEAM" -> {
                                 LabSlider("Energy", state.beamEnergyGeV, onSetBeamEnergy, 1f..14f, "GeV", "%.1f", textColor, secondaryTextColor)
-                                
                                 Surface(color = textColor.copy(alpha = 0.05f), shape = MaterialTheme.shapes.small) {
                                     Column(modifier = Modifier.padding(8.dp)) {
                                         InfoRow("SIDE A", state.selectedParticleA.name, textColor, secondaryTextColor)
@@ -160,37 +154,32 @@ fun ControlPanel(
                             }
                             "PARTICLES" -> {
                                 Text("SIDE A CONFIGURATION", style = MaterialTheme.typography.labelSmall, color = secondaryTextColor)
-                                ParticleSelector(
-                                    selected = state.selectedParticleA,
-                                    onSelect = onSelectParticleA,
-                                    textColor = textColor
-                                )
-                                
+                                ParticleSelector(selected = state.selectedParticleA, onSelect = onSelectParticleA, textColor = textColor)
                                 Spacer(modifier = Modifier.height(16.dp))
-                                
                                 Text("SIDE B CONFIGURATION", style = MaterialTheme.typography.labelSmall, color = secondaryTextColor)
-                                ParticleSelector(
-                                    selected = state.selectedParticleB,
-                                    onSelect = onSelectParticleB,
-                                    textColor = textColor
-                                )
+                                ParticleSelector(selected = state.selectedParticleB, onSelect = onSelectParticleB, textColor = textColor)
                             }
                             "PHYSICS" -> {
                                 LabSlider("Particle Limit", state.maxParticles.toDouble(), { onSetMaxParticles(it.toInt()) }, 50f..500f, "objs", "%.0f", textColor, secondaryTextColor)
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = textColor.copy(0.1f))
-                                LabSlider("Strong Force", state.strongForceScale, { onSetForceScale("STRONG", it) }, 0f..2f, "G", "%.1f", textColor, secondaryTextColor)
-                                LabSlider("Weak Force", state.weakForceScale, { onSetForceScale("WEAK", it) }, 0f..5f, "G", "%.1f", textColor, secondaryTextColor)
-                                LabSlider("Electromagnetism", state.emForceScale, { onSetForceScale("EM", it) }, 0f..2f, "G", "%.1f", textColor, secondaryTextColor)
-                                LabSlider("Gravity", state.gravityScale, { onSetForceScale("GRAVITY", it) }, 0f..5f, "G", "%.1f", textColor, secondaryTextColor)
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = textColor.copy(0.1f))
+                                Text("INSTRUMENTATION", style = MaterialTheme.typography.labelSmall, color = secondaryTextColor)
                                 LabSlider("Magnetic Field", state.magneticFieldTesla, onSetMagneticField, 0f..5f, "T", "%.1f", textColor, secondaryTextColor)
-                                LabSlider("Temporal Scale", state.speedMultiplier, onSetSpeed, 0.2f..3.0f, "x", "%.1f", textColor, secondaryTextColor)
+                                LabSlider("Temporal Scale", state.speedMultiplier, onSetSpeed, 0.05f..5.0f, "x", "%.2f", textColor, secondaryTextColor)
                                 LabSlider("Decay Trails", state.trailLength.toDouble(), { onSetTrailLength(it.toInt()) }, 10f..500f, "px", "%.0f", textColor, secondaryTextColor)
+                                
+                                Surface(color = textColor.copy(alpha = 0.05f), modifier = Modifier.padding(top = 8.dp), shape = MaterialTheme.shapes.extraSmall) {
+                                    Text(
+                                        "Physics Note: Fundamental forces (Strong, EM, Weak) are now intrinsic to particles based on real-world constants. Environment is 0g.",
+                                        modifier = Modifier.padding(8.dp),
+                                        fontSize = 8.sp,
+                                        color = secondaryTextColor,
+                                        lineHeight = 10.sp
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Persistent Bottom Stats
                     Surface(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         color = textColor.copy(alpha = 0.03f),
@@ -217,26 +206,15 @@ fun ControlPanel(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ParticleSelector(
-    selected: ParticleDefinition,
-    onSelect: (ParticleDefinition) -> Unit,
-    textColor: Color
-) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
+fun ParticleSelector(selected: ParticleDefinition, onSelect: (ParticleDefinition) -> Unit, textColor: Color) {
+    FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ElementaryParticles.ALL_PARTICLES.forEach { p ->
             FilterChip(
                 selected = selected.id == p.id,
                 onClick = { onSelect(p) },
                 label = { Text(p.name, fontSize = 9.sp) },
                 shape = MaterialTheme.shapes.extraSmall,
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppTheme.DarkPrimary.copy(alpha = 0.3f),
-                    selectedLabelColor = textColor
-                )
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AppTheme.DarkPrimary.copy(alpha = 0.3f), selectedLabelColor = textColor)
             )
         }
     }
@@ -249,11 +227,7 @@ fun LabSlider(label: String, value: Double, onValueChange: (Double) -> Unit, ran
             Text(label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = color)
             Text("${format.format(value)} $unit", style = MaterialTheme.typography.labelSmall, color = secColor)
         }
-        Slider(
-            value = value.toFloat(), onValueChange = { onValueChange(it.toDouble()) }, valueRange = range,
-            modifier = Modifier.height(30.dp),
-            colors = SliderDefaults.colors(thumbColor = AppTheme.DarkAccent, activeTrackColor = AppTheme.DarkAccent.copy(alpha = 0.4f))
-        )
+        Slider(value = value.toFloat(), onValueChange = { onValueChange(it.toDouble()) }, valueRange = range, modifier = Modifier.height(30.dp), colors = SliderDefaults.colors(thumbColor = AppTheme.DarkAccent, activeTrackColor = AppTheme.DarkAccent.copy(alpha = 0.4f)))
     }
 }
 

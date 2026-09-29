@@ -60,12 +60,8 @@ data class SimulationState(
     val activeSection: String = "BEAM",
     val maxParticles: Int = 150, // Safety limit
     
-    // Force Coupling Constants (Scaled for visualization)
+    // Detector Parameters (External)
     val magneticFieldTesla: Double = 2.0,
-    val strongForceScale: Double = 1.0,
-    val weakForceScale: Double = 1.0,
-    val emForceScale: Double = 1.0,
-    val gravityScale: Double = 0.0, // Usually 0 because it's too weak, but can be enabled
     
     val selectedParticleA: ParticleDefinition = ElementaryParticles.PROTON,
     val selectedParticleB: ParticleDefinition = ElementaryParticles.PROTON,
