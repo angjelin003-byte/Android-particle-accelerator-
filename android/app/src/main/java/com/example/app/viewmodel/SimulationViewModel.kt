@@ -20,16 +20,20 @@ class SimulationViewModel : ViewModel() {
     fun togglePlay() {
         val running = !_uiState.value.isRunning
         _uiState.value = _uiState.value.copy(isRunning = running)
-        if (running) {
-            startSimulation()
-        } else {
-            simulationJob?.cancel()
-            simulationJob = null
-        }
+        if (running) startSimulation() else stopSimulation()
+    }
+
+    private fun stopSimulation() {
+        simulationJob?.cancel()
+        simulationJob = null
     }
 
     fun togglePanel() {
         _uiState.value = _uiState.value.copy(isPanelExpanded = !_uiState.value.isPanelExpanded)
+    }
+
+    fun toggleOrientation() {
+        _uiState.value = _uiState.value.copy(forceLandscape = !_uiState.value.forceLandscape)
     }
 
     fun toggleTheme() {
@@ -37,13 +41,13 @@ class SimulationViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(theme = if (current == "dark") "light" else "dark")
     }
 
-    fun setBeamEnergy(energy: Double) {
-        _uiState.value = _uiState.value.copy(beamEnergyMeV = energy)
+    fun setBombardmentType(type: BombardmentType) {
+        _uiState.value = _uiState.value.copy(bombardmentType = type)
         resetSimulation()
     }
 
-    fun setCollisionAngle(angle: Double) {
-        _uiState.value = _uiState.value.copy(collisionAngleDeg = angle)
+    fun setBeamEnergy(energyGeV: Double) {
+        _uiState.value = _uiState.value.copy(beamEnergyGeV = energyGeV)
         resetSimulation()
     }
 
@@ -63,84 +67,46 @@ class SimulationViewModel : ViewModel() {
     }
 
     fun resetSimulation() {
-        simulationJob?.cancel()
-        simulationJob = null
+        stopSimulation()
         
-        val energy = _uiState.value.beamEnergyMeV
-        val angleRad = Math.toRadians(_uiState.value.collisionAngleDeg)
+        val type = _uiState.value.bombardmentType
+        val energyMeV = _uiState.value.beamEnergyGeV * 1000.0
         
-        val m = 938.27
-        val totalE = energy + m
-        val gamma = totalE / m
-        val beta = sqrt(max(0.0, 1.0 - 1.0 / (gamma * gamma)))
-        val p = gamma * m * beta
+        val (p1Def, p2Def) = when (type) {
+            BombardmentType.PROTON_PROTON -> ElementaryParticles.PROTON to ElementaryParticles.PROTON
+            BombardmentType.ELECTRON_POSITRON -> ElementaryParticles.ELECTRON to ElementaryParticles.POSITRON
+            BombardmentType.PROTON_ANTIPROTON -> ElementaryParticles.PROTON to ElementaryParticles.ANTIPROTON
+            BombardmentType.HEAVY_ION -> ElementaryParticles.LEAD to ElementaryParticles.LEAD
+            BombardmentType.CUSTOM -> ElementaryParticles.TOP to ElementaryParticles.HIGGS
+        }
 
-        val p1Vx = beta * 6.0
-        val p1Vy = 0.0
-        
-        val p2Vx = -beta * 6.0 * cos(angleRad)
-        val p2Vy = -beta * 6.0 * sin(angleRad)
-
-        val beamA = ParticleState(
-            id = "beam_a",
-            definitionId = "proton",
-            name = "Proton A",
-            symbol = "p+",
-            color = "#818CF8",
-            category = ParticleCategory.BARYON,
-            x = -400.0,
-            y = 0.0,
-            z = 0.0,
-            vx = p1Vx,
-            vy = p1Vy,
-            vz = 0.0,
-            mass = m,
-            charge = 1.0,
-            beta = beta,
-            gamma = gamma,
-            px = p,
-            py = 0.0,
-            pz = 0.0,
-            pTotal = p,
-            energy = totalE,
-            kineticEnergy = energy,
-            radius = 12.0,
-            trail = emptyList(),
-            isPrimaryBeam = "A",
-            isReactionProduct = false
-        )
-
-        val beamB = ParticleState(
-            id = "beam_b",
-            definitionId = "proton",
-            name = "Proton B",
-            symbol = "p+",
-            color = "#F472B6",
-            category = ParticleCategory.BARYON,
-            x = 400.0,
-            y = 0.0,
-            z = 0.0,
-            vx = p2Vx,
-            vy = p2Vy,
-            vz = 0.0,
-            mass = m,
-            charge = 1.0,
-            beta = beta,
-            gamma = gamma,
-            px = -p * cos(angleRad),
-            py = -p * sin(angleRad),
-            pz = 0.0,
-            pTotal = p,
-            energy = totalE,
-            kineticEnergy = energy,
-            radius = 12.0,
-            trail = emptyList(),
-            isPrimaryBeam = "B",
-            isReactionProduct = false
-        )
+        fun createBeamParticle(def: ParticleDefinition, x: Double, side: String): ParticleState {
+            val totalE = energyMeV + def.massMeV
+            val gamma = totalE / max(0.001, def.massMeV)
+            val beta = if (def.massMeV == 0.0) 1.0 else sqrt(max(0.0, 1.0 - 1.0 / (gamma * gamma)))
+            
+            return ParticleState(
+                id = "beam_$side",
+                definition = def,
+                x = x,
+                y = 0.0,
+                z = 0.0,
+                vx = if (side == "A") beta * 8.0 else -beta * 8.0,
+                vy = 0.0,
+                vz = 0.0,
+                beta = beta,
+                gamma = gamma,
+                energy = totalE,
+                trail = emptyList(),
+                isPrimaryBeam = side
+            )
+        }
 
         _uiState.value = _uiState.value.copy(
-            particles = listOf(beamA, beamB),
+            particles = listOf(
+                createBeamParticle(p1Def, -500.0, "A"),
+                createBeamParticle(p2Def, 500.0, "B")
+            ),
             isRunning = false
         )
     }
@@ -154,26 +120,17 @@ class SimulationViewModel : ViewModel() {
                 
                 var collided = false
                 val updated = mutableListOf<ParticleState>()
-                val newParticles = mutableListOf<ParticleState>()
+                val collisionProducts = mutableListOf<ParticleState>()
 
                 for (p in state.particles) {
-                    if (p.annihilated && p.trail.isEmpty()) continue
+                    if (p.annihilated) continue
                     
                     val nx = p.x + p.vx * state.speedMultiplier
                     val ny = p.y + p.vy * state.speedMultiplier
                     val nz = p.z + p.vz * state.speedMultiplier
                     
-                    val newTrail = (p.trail + TrailPoint(p.x, p.y, p.z, System.currentTimeMillis().toDouble()))
-                        .takeLast(state.trailLength)
-                        
-                    updated.add(
-                        p.copy(
-                            x = nx,
-                            y = ny,
-                            z = nz,
-                            trail = newTrail
-                        )
-                    )
+                    val newTrail = (p.trail + TrailPoint(p.x, p.y, p.z)).takeLast(state.trailLength)
+                    updated.add(p.copy(x = nx, y = ny, z = nz, trail = newTrail))
                 }
 
                 val a = updated.find { it.isPrimaryBeam == "A" }
@@ -183,14 +140,13 @@ class SimulationViewModel : ViewModel() {
                     val dist = sqrt((a.x - b.x).pow(2) + (a.y - b.y).pow(2) + (a.z - b.z).pow(2))
                     if (dist < 20.0) {
                         collided = true
-                        val products = generateReactionProducts(a, b)
-                        newParticles.addAll(updated.map { if (it.isPrimaryBeam != null) it.copy(annihilated = true) else it })
-                        newParticles.addAll(products)
+                        collisionProducts.addAll(generateProducts(a, b))
+                        updated.forEachIndexed { i, p -> if (p.isPrimaryBeam != null) updated[i] = p.copy(annihilated = true) }
                     }
                 }
 
                 _uiState.value = _uiState.value.copy(
-                    particles = if (collided) newParticles else updated
+                    particles = if (collided) updated.filter { !it.annihilated } + collisionProducts else updated
                 )
                 
                 delay(16)
@@ -198,64 +154,42 @@ class SimulationViewModel : ViewModel() {
         }
     }
 
-    private fun generateReactionProducts(a: ParticleState, b: ParticleState): List<ParticleState> {
+    private fun generateProducts(a: ParticleState, b: ParticleState): List<ParticleState> {
         val list = mutableListOf<ParticleState>()
         val rnd = kotlin.random.Random
-        val count = 12 + rnd.nextInt(12)
+        val energyGeV = _uiState.value.beamEnergyGeV
+        val count = (8 + rnd.nextInt(12) * (energyGeV / 2).toInt()).coerceAtMost(60)
         
-        val colors = listOf("#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#A855F7", "#22D3EE")
-        
+        val particlePool = listOf(
+            ElementaryParticles.PHOTON, ElementaryParticles.GLUON, 
+            ElementaryParticles.MUON, ElementaryParticles.TAU, 
+            ElementaryParticles.PION, ElementaryParticles.UP, ElementaryParticles.DOWN,
+            ElementaryParticles.CHARM, ElementaryParticles.STRANGE,
+            ElementaryParticles.TOP, ElementaryParticles.BOTTOM,
+            ElementaryParticles.W_PLUS, ElementaryParticles.W_MINUS,
+            ElementaryParticles.Z_BOSON, ElementaryParticles.HIGGS
+        )
+
         for (i in 0 until count) {
-            val theta = rnd.nextDouble(0.0, PI) // Polar angle
-            val phi = rnd.nextDouble(0.0, 2 * PI) // Azimuthal angle
-            val speed = 2.0 + rnd.nextDouble(0.0, 8.0)
+            val def = particlePool[rnd.nextInt(particlePool.size)]
+            val theta = rnd.nextDouble(0.0, PI)
+            val phi = rnd.nextDouble(0.0, 2 * PI)
+            val speed = 2.0 + rnd.nextDouble(1.0, 7.0)
             
-            val vx = speed * sin(theta) * cos(phi)
-            val vy = speed * sin(theta) * sin(phi)
-            val vz = speed * cos(theta)
-            
-            val m = 139.5
-            val energy = m * (1.1 + rnd.nextDouble(0.0, 4.0))
-            val gamma = energy / m
-            val beta = sqrt(max(0.0, 1.0 - 1.0 / (gamma * gamma)))
-            val p = gamma * m * beta
-            
-            list.add(
-                ParticleState(
-                    id = "prod_$i",
-                    definitionId = "pion",
-                    name = "Particle #$i",
-                    symbol = if (i % 2 == 0) "π" else "K",
-                    color = colors[rnd.nextInt(colors.size)],
-                    category = ParticleCategory.MESON,
-                    x = (a.x + b.x) / 2.0,
-                    y = (a.y + b.y) / 2.0,
-                    z = (a.z + b.z) / 2.0,
-                    vx = vx,
-                    vy = vy,
-                    vz = vz,
-                    mass = m,
-                    charge = 0.0,
-                    beta = beta,
-                    gamma = gamma,
-                    px = p * sin(theta) * cos(phi),
-                    py = p * sin(theta) * sin(phi),
-                    pz = p * cos(theta),
-                    pTotal = p,
-                    energy = energy,
-                    kineticEnergy = energy - m,
-                    radius = 7.0,
-                    trail = emptyList(),
-                    isPrimaryBeam = null,
-                    isReactionProduct = true
-                )
-            )
+            list.add(ParticleState(
+                id = "prod_${System.currentTimeMillis()}_$i",
+                definition = def,
+                x = (a.x + b.x) / 2.0,
+                y = (a.y + b.y) / 2.0,
+                z = (a.z + b.z) / 2.0,
+                vx = speed * sin(theta) * cos(phi),
+                vy = speed * sin(theta) * sin(phi),
+                vz = speed * cos(theta),
+                beta = 0.0, gamma = 1.0, energy = def.massMeV,
+                trail = emptyList(),
+                isPrimaryBeam = null
+            ))
         }
         return list
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        simulationJob?.cancel()
     }
 }

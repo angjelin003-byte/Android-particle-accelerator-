@@ -32,30 +32,25 @@ fun SimulationView(
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
-                    // Drag X controls camera Y rotation, Drag Y controls camera X rotation
                     onRotate(dragAmount.y * 0.5f, dragAmount.x * 0.5f)
                 }
             }
     ) {
         val centerX = size.width / 2f
         val centerY = size.height / 2f
-        val fov = 1000f // Field of view
+        val fov = 1200f
 
-        // Helper for perspective projection
         fun project(x: Double, y: Double, z: Double): Triple<Float, Float, Float>? {
-            // Rotate around Y axis
             val cosY = cos(Math.toRadians(state.cameraRotationY.toDouble()))
             val sinY = sin(Math.toRadians(state.cameraRotationY.toDouble()))
             val x1 = x * cosY - z * sinY
             val z1 = x * sinY + z * cosY
 
-            // Rotate around X axis
             val cosX = cos(Math.toRadians(state.cameraRotationX.toDouble()))
             val sinX = sin(Math.toRadians(state.cameraRotationX.toDouble()))
             val y2 = y * cosX - z1 * sinX
             val z2 = y * sinX + z1 * cosX
 
-            // Distance from camera
             val depth = z2 + state.cameraDistance.toDouble()
             if (depth <= 10) return null
 
@@ -66,98 +61,60 @@ fun SimulationView(
             return Triple(px, py, scale)
         }
 
-        // Draw 3D Grid Rings
-        for (r in listOf(200f, 400f, 600f)) {
-            val gridPath = Path()
+        // Draw 3D Detector Cylinder (Visual Reference)
+        for (z_off in listOf(-400.0, 0.0, 400.0)) {
+            val circlePath = Path()
             var first = true
-            for (angle in 0..360 step 10) {
+            for (angle in 0..360 step 15) {
                 val rad = Math.toRadians(angle.toDouble())
-                val gx = r * cos(rad)
-                val gz = r * sin(rad)
-                val p = project(gx, 0.0, gz)
+                val p = project(300.0 * cos(rad), 300.0 * sin(rad), z_off)
                 if (p != null) {
-                    if (first) gridPath.moveTo(p.first, p.second) else gridPath.lineTo(p.first, p.second)
+                    if (first) circlePath.moveTo(p.first, p.second) else circlePath.lineTo(p.first, p.second)
                     first = false
                 }
             }
-            drawPath(gridPath, gridColor, style = Stroke(width = 1f))
+            drawPath(circlePath, gridColor.copy(alpha = 0.05f), style = Stroke(width = 1f))
         }
 
-        // Depth sort particles for correct rendering
-        val sortedParticles = state.particles
-            .mapNotNull { p ->
-                val proj = project(p.x, p.y, p.z)
-                if (proj != null) Triple(p, proj, proj.third) else null
-            }
-            .sortedBy { it.third } // Sort by scale (distance proxy)
+        // Project and depth-sort particles
+        val renderList = state.particles.mapNotNull { p ->
+            val proj = project(p.x, p.y, p.z) ?: return@mapNotNull null
+            val trailProj = p.trail.mapNotNull { project(it.x, it.y, it.z) }
+            Quadruple(p, proj, trailProj, proj.third)
+        }.sortedBy { it.fourth }
 
-        // Draw trails
-        for (item in sortedParticles) {
+        // Draw Trails
+        for (item in renderList) {
             val p = item.first
-            if (p.annihilated && p.trail.isEmpty()) continue
+            val trail = item.third
+            if (trail.size < 2) continue
             
-            val particleColor = try {
-                Color(android.graphics.Color.parseColor(p.color))
-            } catch (e: Exception) {
-                Color.Gray
+            val pColor = try { Color(android.graphics.Color.parseColor(p.definition.color)) } catch (e: Exception) { Color.Gray }
+            val trailPath = Path()
+            trailPath.moveTo(trail[0].first, trail[0].second)
+            for (i in 1 until trail.size) {
+                trailPath.lineTo(trail[i].first, trail[i].second)
             }
-
-            if (p.trail.size > 1) {
-                val trailPath = Path()
-                var first = true
-                for (tp in p.trail) {
-                    val pt = project(tp.x, tp.y, tp.z)
-                    if (pt != null) {
-                        if (first) trailPath.moveTo(pt.first, pt.second) else trailPath.lineTo(pt.first, pt.second)
-                        first = false
-                    }
-                }
-                drawPath(
-                    path = trailPath,
-                    color = particleColor.copy(alpha = 0.3f),
-                    style = Stroke(width = (p.radius * 0.4 * item.third / 10f).toFloat().coerceAtLeast(1f))
-                )
-            }
+            drawPath(trailPath, pColor.copy(alpha = 0.25f), style = Stroke(width = (p.definition.radius * 0.3 * item.fourth / 10f).toFloat().coerceAtLeast(1f)))
         }
 
-        // Draw active particles as 3D spheres (glow + core)
-        for (item in sortedParticles) {
+        // Draw Particles
+        for (item in renderList) {
             val p = item.first
-            if (p.annihilated) continue
-
             val proj = item.second
             val px = proj.first
             val py = proj.second
             val scale = proj.third
             
-            val particleColor = try {
-                Color(android.graphics.Color.parseColor(p.color))
-            } catch (e: Exception) {
-                Color.Gray
-            }
+            val pColor = try { Color(android.graphics.Color.parseColor(p.definition.color)) } catch (e: Exception) { Color.Gray }
+            val radius = (p.definition.radius * scale / 10f).toFloat().coerceAtLeast(2f)
 
-            val dynamicRadius = (p.radius * scale / 10f).toFloat().coerceAtLeast(2f)
-
-            // Outer glow
-            drawCircle(
-                color = particleColor.copy(alpha = 0.3f),
-                radius = dynamicRadius * 2f,
-                center = Offset(px, py)
-            )
-            
-            // Core
-            drawCircle(
-                color = particleColor,
-                radius = dynamicRadius,
-                center = Offset(px, py)
-            )
-            
-            // 3D Highlight
-            drawCircle(
-                color = Color.White.copy(alpha = 0.6f),
-                radius = dynamicRadius * 0.4f,
-                center = Offset(px - dynamicRadius * 0.3f, py - dynamicRadius * 0.3f)
-            )
+            // Dynamic glow based on scale
+            drawCircle(pColor.copy(alpha = 0.3f), radius * 2f, Offset(px, py))
+            drawCircle(pColor, radius, Offset(px, py))
+            drawCircle(Color.White.copy(alpha = 0.7f), radius * 0.35f, Offset(px - radius * 0.3f, py - radius * 0.3f))
         }
     }
 }
+
+data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

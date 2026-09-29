@@ -1,6 +1,6 @@
 package com.example.app
 
-import android.content.res.Configuration
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.app.ui.ControlPanel
@@ -23,16 +22,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: SimulationViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
-            val configuration = LocalConfiguration.current
-            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             
+            // Sync physical orientation with manual override
+            LaunchedEffect(uiState.forceLandscape) {
+                requestedOrientation = if (uiState.forceLandscape) {
+                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                } else {
+                    ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                }
+            }
+
             val isDark = uiState.theme == "dark"
             val bgColor = if (isDark) AppTheme.DarkBg else AppTheme.LightBg
 
-            // Panel animation state
+            // Dynamic panel size based on expansion state
             val panelWidth by animateDpAsState(
-                targetValue = if (uiState.isPanelExpanded) 300.dp else 60.dp,
-                label = "Panel Width"
+                targetValue = if (uiState.isPanelExpanded) 280.dp else 60.dp,
+                label = "Panel Expansion"
             )
 
             MaterialTheme(
@@ -52,66 +58,31 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = bgColor
-                ) {
-                    if (isLandscape) {
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                                SimulationView(
-                                    state = uiState,
-                                    onRotate = { rx, ry -> viewModel.updateCamera(rx, ry) },
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            
-                            VerticalDivider(
-                                thickness = 1.dp, 
-                                color = if (isDark) AppTheme.DarkTextSecondary.copy(alpha = 0.1f) else AppTheme.LightTextSecondary.copy(alpha = 0.1f)
-                            )
-                            
-                            ControlPanel(
+                Surface(modifier = Modifier.fillMaxSize(), color = bgColor) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        // Main Viewport
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                            SimulationView(
                                 state = uiState,
-                                onTogglePlay = { viewModel.togglePlay() },
-                                onReset = { viewModel.resetSimulation() },
-                                onToggleTheme = { viewModel.toggleTheme() },
-                                onSetBeamEnergy = { viewModel.setBeamEnergy(it) },
-                                onSetCollisionAngle = { viewModel.setCollisionAngle(it) },
-                                onSetTrailLength = { viewModel.setTrailLength(it) },
-                                onSetSpeed = { viewModel.setSpeed(it) },
-                                onTogglePanel = { viewModel.togglePanel() },
-                                modifier = Modifier.width(panelWidth)
+                                onRotate = { rx, ry -> viewModel.updateCamera(rx, ry) },
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
-                    } else {
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            Box(modifier = Modifier.weight(1.5f).fillMaxWidth()) {
-                                SimulationView(
-                                    state = uiState,
-                                    onRotate = { rx, ry -> viewModel.updateCamera(rx, ry) },
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            
-                            HorizontalDivider(
-                                thickness = 1.dp, 
-                                color = if (isDark) AppTheme.DarkTextSecondary.copy(alpha = 0.1f) else AppTheme.LightTextSecondary.copy(alpha = 0.1f)
-                            )
-                            
-                            ControlPanel(
-                                state = uiState,
-                                onTogglePlay = { viewModel.togglePlay() },
-                                onReset = { viewModel.resetSimulation() },
-                                onToggleTheme = { viewModel.toggleTheme() },
-                                onSetBeamEnergy = { viewModel.setBeamEnergy(it) },
-                                onSetCollisionAngle = { viewModel.setCollisionAngle(it) },
-                                onSetTrailLength = { viewModel.setTrailLength(it) },
-                                onSetSpeed = { viewModel.setSpeed(it) },
-                                onTogglePanel = { viewModel.togglePanel() },
-                                modifier = Modifier.weight(1f).fillMaxWidth()
-                            )
-                        }
+                        
+                        // Right-aligned Foldable Control Panel
+                        ControlPanel(
+                            state = uiState,
+                            onTogglePlay = { viewModel.togglePlay() },
+                            onReset = { viewModel.resetSimulation() },
+                            onToggleTheme = { viewModel.toggleTheme() },
+                            onToggleOrientation = { viewModel.toggleOrientation() },
+                            onSetBombardmentType = { viewModel.setBombardmentType(it) },
+                            onSetBeamEnergy = { viewModel.setBeamEnergy(it) },
+                            onSetTrailLength = { viewModel.setTrailLength(it) },
+                            onSetSpeed = { viewModel.setSpeed(it) },
+                            onTogglePanel = { viewModel.togglePanel() },
+                            modifier = Modifier.width(panelWidth)
+                        )
                     }
                 }
             }
