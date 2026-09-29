@@ -2,10 +2,11 @@ name: Build Android APK with Gradle & Kotlin
 
 on:
   push:
-    branches: [ main, master ]
   pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-apk:
@@ -49,3 +50,16 @@ jobs:
           path: '**/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish Release APK
+        uses: softprops/action-gh-release@v2
+        if: github.event_name != 'pull_request'
+        with:
+          tag_name: nightly-build
+          name: "Android Debug APK (Latest Build)"
+          body: "Automated Android Debug APK build from commit ${{ github.sha }}. Download `app-debug.apk` below."
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          prerelease: true
+          overwrite: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
