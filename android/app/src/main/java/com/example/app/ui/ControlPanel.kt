@@ -15,10 +15,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.types.*
+import android.content.res.Configuration
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -35,6 +37,8 @@ fun ControlPanel(
     onSetBeamEnergy: (Double) -> Unit,
     onSetTrailLength: (Int) -> Unit,
     onSetSpeed: (Double) -> Unit,
+    onSetMagneticField: (Double) -> Unit,
+    onSetForceScale: (String, Double) -> Unit,
     onTogglePanel: () -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier
@@ -44,14 +48,17 @@ fun ControlPanel(
     val surfaceColor = if (isDark) AppTheme.DarkSurface else AppTheme.LightSurface
     val textColor = if (isDark) AppTheme.DarkText else AppTheme.LightText
     val secondaryTextColor = if (isDark) AppTheme.DarkTextSecondary else AppTheme.LightTextSecondary
+    
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     Surface(
-        modifier = modifier.fillMaxHeight(),
+        modifier = modifier,
         color = surfaceColor,
         tonalElevation = 6.dp
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header with Exit Button
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth().padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -99,8 +106,8 @@ fun ControlPanel(
 
             AnimatedVisibility(
                 visible = state.isPanelExpanded,
-                enter = expandHorizontally() + fadeIn(),
-                exit = shrinkHorizontally() + fadeOut()
+                enter = if (isLandscape) (expandHorizontally() + fadeIn()) else (expandVertically() + fadeIn()),
+                exit = if (isLandscape) (shrinkHorizontally() + fadeOut()) else (shrinkVertically() + fadeOut())
             ) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
@@ -141,7 +148,6 @@ fun ControlPanel(
                                 }
                                 LabSlider("Energy", state.beamEnergyGeV, onSetBeamEnergy, 1f..14f, "GeV", "%.1f", textColor, secondaryTextColor)
                                 
-                                // Show current selection summary
                                 Surface(color = textColor.copy(alpha = 0.05f), shape = MaterialTheme.shapes.small) {
                                     Column(modifier = Modifier.padding(8.dp)) {
                                         InfoRow("SIDE A", state.selectedParticleA.name, textColor, secondaryTextColor)
@@ -167,6 +173,12 @@ fun ControlPanel(
                                 )
                             }
                             "PHYSICS" -> {
+                                LabSlider("Strong Force", state.strongForceScale, { onSetForceScale("STRONG", it) }, 0f..2f, "G", "%.1f", textColor, secondaryTextColor)
+                                LabSlider("Weak Force", state.weakForceScale, { onSetForceScale("WEAK", it) }, 0f..5f, "G", "%.1f", textColor, secondaryTextColor)
+                                LabSlider("Electromagnetism", state.emForceScale, { onSetForceScale("EM", it) }, 0f..2f, "G", "%.1f", textColor, secondaryTextColor)
+                                LabSlider("Gravity", state.gravityScale, { onSetForceScale("GRAVITY", it) }, 0f..5f, "G", "%.1f", textColor, secondaryTextColor)
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = textColor.copy(0.1f))
+                                LabSlider("Magnetic Field", state.magneticFieldTesla, onSetMagneticField, 0f..5f, "T", "%.1f", textColor, secondaryTextColor)
                                 LabSlider("Temporal Scale", state.speedMultiplier, onSetSpeed, 0.2f..3.0f, "x", "%.1f", textColor, secondaryTextColor)
                                 LabSlider("Decay Trails", state.trailLength.toDouble(), { onSetTrailLength(it.toInt()) }, 10f..500f, "px", "%.0f", textColor, secondaryTextColor)
                                 IconButton(onClick = onToggleTheme, modifier = Modifier.align(Alignment.End)) {

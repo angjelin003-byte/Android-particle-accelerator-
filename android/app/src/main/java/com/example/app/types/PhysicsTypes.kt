@@ -15,7 +15,10 @@ data class ParticleDefinition(
     val charge: Double,
     val spin: String,
     val color: String,
-    val radius: Double // Scaled relative radius for visualization
+    val radius: Double,
+    val lifetimeNs: Double = -1.0,
+    val isStable: Boolean = true,
+    val hasColorCharge: Boolean = false // For Strong interaction
 )
 
 data class ParticleState(
@@ -32,7 +35,9 @@ data class ParticleState(
     val energy: Double,
     val trail: List<TrailPoint>,
     val isPrimaryBeam: String? = null,
-    val annihilated: Boolean = false
+    val annihilated: Boolean = false,
+    val birthTimeMs: Long = System.currentTimeMillis(),
+    val colorCharge: Int = 0 // 0: none, 1: red, 2: green, 3: blue
 )
 
 data class TrailPoint(val x: Double, val y: Double, val z: Double)
@@ -52,40 +57,40 @@ data class SimulationState(
     val cameraDistance: Float = 1200f,
     val activeSection: String = "BEAM",
     
-    // Custom beam configuration
+    // Force Coupling Constants (Scaled for visualization)
+    val magneticFieldTesla: Double = 2.0,
+    val strongForceScale: Double = 1.0,
+    val weakForceScale: Double = 1.0,
+    val emForceScale: Double = 1.0,
+    val gravityScale: Double = 0.0, // Usually 0 because it's too weak, but can be enabled
+    
     val selectedParticleA: ParticleDefinition = ElementaryParticles.PROTON,
     val selectedParticleB: ParticleDefinition = ElementaryParticles.PROTON
 )
 
 object ElementaryParticles {
-    // Realistic sizing: Nuclei are massive, Bosons are large/energetic, Quarks/Leptons are small
-    
-    // Hadrons & Nuclei (Largest)
-    val PROTON = ParticleDefinition("p", "Proton", "p+", ParticleCategory.BARYON, 938.27, 1.0, "1/2", "#6366F1", 12.0)
-    val ANTIPROTON = ParticleDefinition("ap", "Antiproton", "p-", ParticleCategory.BARYON, 938.27, -1.0, "1/2", "#EC4899", 12.0)
-    val LEAD = ParticleDefinition("pb", "Lead Nucleus", "Pb", ParticleCategory.NUCLEUS, 193700.0, 82.0, "0", "#4B5563", 28.0)
-    val PION = ParticleDefinition("pi", "Pion", "π", ParticleCategory.MESON, 139.57, 0.0, "0", "#10B981", 8.0)
+    val PROTON = ParticleDefinition("p", "Proton", "p+", ParticleCategory.BARYON, 938.27, 1.0, "1/2", "#6366F1", 12.0, isStable = true)
+    val ANTIPROTON = ParticleDefinition("ap", "Antiproton", "p-", ParticleCategory.BARYON, 938.27, -1.0, "1/2", "#EC4899", 12.0, isStable = true)
+    val LEAD = ParticleDefinition("pb", "Lead Nucleus", "Pb", ParticleCategory.NUCLEUS, 193700.0, 82.0, "0", "#4B5563", 28.0, isStable = true)
+    val PION = ParticleDefinition("pi", "Pion", "π", ParticleCategory.MESON, 139.57, 0.0, "0", "#10B981", 8.0, lifetimeNs = 26.0, isStable = false)
 
-    // Gauge Bosons (Medium)
-    val PHOTON = ParticleDefinition("y", "Photon", "γ", ParticleCategory.GAUGE_BOSON, 0.0, 0.0, "1", "#FFFFFF", 6.0)
-    val GLUON = ParticleDefinition("g", "Gluon", "g", ParticleCategory.GAUGE_BOSON, 0.0, 0.0, "1", "#FFD700", 6.0)
-    val Z_BOSON = ParticleDefinition("z", "Z Boson", "Z", ParticleCategory.GAUGE_BOSON, 91187.0, 0.0, "1", "#C0C0C0", 10.0)
-    val W_PLUS = ParticleDefinition("wp", "W+ Boson", "W+", ParticleCategory.GAUGE_BOSON, 80385.0, 1.0, "1", "#FFA500", 10.0)
-    val HIGGS = ParticleDefinition("h", "Higgs Boson", "H", ParticleCategory.SCALAR_BOSON, 125100.0, 0.0, "0", "#F59E0B", 14.0)
+    val PHOTON = ParticleDefinition("y", "Photon", "γ", ParticleCategory.GAUGE_BOSON, 0.0, 0.0, "1", "#FFFFFF", 6.0, isStable = true)
+    val GLUON = ParticleDefinition("g", "Gluon", "g", ParticleCategory.GAUGE_BOSON, 0.0, 0.0, "1", "#FFD700", 6.0, isStable = true, hasColorCharge = true)
+    val Z_BOSON = ParticleDefinition("z", "Z Boson", "Z", ParticleCategory.GAUGE_BOSON, 91187.0, 0.0, "1", "#C0C0C0", 10.0, lifetimeNs = 0.00000001, isStable = false)
+    val W_PLUS = ParticleDefinition("wp", "W+ Boson", "W+", ParticleCategory.GAUGE_BOSON, 80385.0, 1.0, "1", "#FFA500", 10.0, lifetimeNs = 0.00000001, isStable = false)
+    val HIGGS = ParticleDefinition("h", "Higgs Boson", "H", ParticleCategory.SCALAR_BOSON, 125100.0, 0.0, "0", "#F59E0B", 14.0, lifetimeNs = 0.0000001, isStable = false)
 
-    // Leptons (Small)
-    val ELECTRON = ParticleDefinition("e", "Electron", "e-", ParticleCategory.LEPTON, 0.511, -1.0, "1/2", "#00AAFF", 4.0)
-    val POSITRON = ParticleDefinition("pos", "Positron", "e+", ParticleCategory.LEPTON, 0.511, 1.0, "1/2", "#FF00AA", 4.0)
-    val MUON = ParticleDefinition("mu", "Muon", "μ-", ParticleCategory.LEPTON, 105.66, -1.0, "1/2", "#00FFCC", 5.0)
-    val TAU = ParticleDefinition("tau", "Tau", "τ-", ParticleCategory.LEPTON, 1776.8, -1.0, "1/2", "#00CCFF", 6.0)
+    val ELECTRON = ParticleDefinition("e", "Electron", "e-", ParticleCategory.LEPTON, 0.511, -1.0, "1/2", "#00AAFF", 4.0, isStable = true)
+    val POSITRON = ParticleDefinition("pos", "Positron", "e+", ParticleCategory.LEPTON, 0.511, 1.0, "1/2", "#FF00AA", 4.0, isStable = true)
+    val MUON = ParticleDefinition("mu", "Muon", "μ-", ParticleCategory.LEPTON, 105.66, -1.0, "1/2", "#00FFCC", 5.0, lifetimeNs = 2200.0, isStable = false)
+    val TAU = ParticleDefinition("tau", "Tau", "τ-", ParticleCategory.LEPTON, 1776.8, -1.0, "1/2", "#00CCFF", 6.0, lifetimeNs = 0.00029, isStable = false)
 
-    // Quarks (Smallest visual points)
-    val TOP = ParticleDefinition("t", "Top Quark", "t", ParticleCategory.QUARK, 173100.0, 0.66, "1/2", "#FF55FF", 5.0)
-    val BOTTOM = ParticleDefinition("b", "Bottom Quark", "b", ParticleCategory.QUARK, 4180.0, -0.33, "1/2", "#55FFFF", 4.0)
-    val CHARM = ParticleDefinition("c", "Charm Quark", "c", ParticleCategory.QUARK, 1280.0, 0.66, "1/2", "#5555FF", 4.0)
-    val STRANGE = ParticleDefinition("s", "Strange Quark", "s", ParticleCategory.QUARK, 96.0, -0.33, "1/2", "#FFFF55", 3.0)
-    val UP = ParticleDefinition("u", "Up Quark", "u", ParticleCategory.QUARK, 2.2, 0.66, "1/2", "#FF5555", 3.0)
-    val DOWN = ParticleDefinition("d", "Down Quark", "d", ParticleCategory.QUARK, 4.7, -0.33, "1/2", "#55FF55", 3.0)
+    val TOP = ParticleDefinition("t", "Top Quark", "t", ParticleCategory.QUARK, 173100.0, 0.66, "1/2", "#FF55FF", 5.0, lifetimeNs = 0.0000000000001, isStable = false, hasColorCharge = true)
+    val BOTTOM = ParticleDefinition("b", "Bottom Quark", "b", ParticleCategory.QUARK, 4180.0, -0.33, "1/2", "#55FFFF", 4.0, isStable = true, hasColorCharge = true)
+    val CHARM = ParticleDefinition("c", "Charm Quark", "c", ParticleCategory.QUARK, 1280.0, 0.66, "1/2", "#5555FF", 4.0, isStable = true, hasColorCharge = true)
+    val STRANGE = ParticleDefinition("s", "Strange Quark", "s", ParticleCategory.QUARK, 96.0, -0.33, "1/2", "#FFFF55", 3.0, isStable = true, hasColorCharge = true)
+    val UP = ParticleDefinition("u", "Up Quark", "u", ParticleCategory.QUARK, 2.2, 0.66, "1/2", "#FF5555", 3.0, isStable = true, hasColorCharge = true)
+    val DOWN = ParticleDefinition("d", "Down Quark", "d", ParticleCategory.QUARK, 4.7, -0.33, "1/2", "#55FF55", 3.0, isStable = true, hasColorCharge = true)
 
     val ALL_PARTICLES = listOf(
         PROTON, ANTIPROTON, LEAD, PION, 
