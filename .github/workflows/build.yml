@@ -27,13 +27,12 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Verify Gradle Wrapper & JAR
+      - name: Configure Gradle Environment & Cleanup Repositories
         run: |
           mkdir -p gradle/wrapper android/gradle/wrapper
           
-          # Check and fetch gradle-wrapper.jar if missing
+          # Automatically downloads the missing gradle-wrapper.jar
           if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "gradle-wrapper.jar not found in root, downloading official wrapper..."
             curl -sSL "https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar || gradle wrapper --gradle-version 8.5
           fi
           
@@ -48,9 +47,15 @@ jobs:
             chmod +x android/gradlew
           fi
 
+          # Switch FAIL_ON_PROJECT_REPOS to PREFER_SETTINGS to prevent repository conflicts
+          find . -name "settings.gradle*" -exec sed -i 's/FAIL_ON_PROJECT_REPOS/PREFER_SETTINGS/g' {} +
+
+          # Remove redundant allprojects repository blocks
+          find . -name "build.gradle.kts" -exec sed -i '/allprojects[[:space:]]*{/,/^[[:space:]]*}/d' {} +
+          find . -name "build.gradle" -exec sed -i '/allprojects[[:space:]]*{/,/^[[:space:]]*}/d' {} +
+
       - name: Build with Gradle & Kotlin
         run: |
-          # Try gradlew first, fallback to system gradle
           if [ -f gradlew ] && [ -f gradle/wrapper/gradle-wrapper.jar ]; then
             ./gradlew assembleDebug --stacktrace
           elif [ -f android/gradlew ] && [ -f android/gradle/wrapper/gradle-wrapper.jar ]; then
