@@ -1,0 +1,6 @@
+{
+  "name": "Relativistic Particle Collision Lab",
+  "description": "Interactive 2D elementary particle collision simulation with near-light-speed relativistic kinematics, foldable real-time control panel, Coulomb scattering, reactions, and energy-level visualizations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
