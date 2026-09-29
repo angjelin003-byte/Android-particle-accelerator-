@@ -11,7 +11,10 @@ import kotlin.math.sqrt
 
 data class SimulationState(
     val particles: List<ParticleState> = emptyList(),
-    val isRunning: Boolean = false
+    val isRunning: Boolean = false,
+    val theme: String = "dark",
+    val layout: String = "vertical",
+    val trailLength: Int = 200
 )
 
 class SimulationViewModel : ViewModel() {
@@ -29,6 +32,19 @@ class SimulationViewModel : ViewModel() {
         } else {
             simulationJob?.cancel()
         }
+    }
+
+    fun toggleTheme() {
+        val currentTheme = _uiState.value.theme
+        _uiState.value = _uiState.value.copy(theme = if (currentTheme == "dark") "light" else "dark")
+    }
+
+    fun setLayout(layout: String) {
+        _uiState.value = _uiState.value.copy(layout = layout)
+    }
+
+    fun setTrailLength(length: Int) {
+        _uiState.value = _uiState.value.copy(trailLength = length)
     }
 
     private fun startSimulation() {
