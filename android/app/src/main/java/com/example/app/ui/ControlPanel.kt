@@ -13,8 +13,7 @@ fun ControlPanel(
     onTogglePlay: () -> Unit,
     onToggleTheme: () -> Unit,
     onSetLayout: (String) -> Unit,
-    onSetTrailLength: (Int) -> Unit,
-    onToggleOrientation: () -> Unit
+    onSetTrailLength: (Int) -> Unit
 ) {
     Column(modifier = Modifier.padding(16.dp)) {
         Button(onClick = onTogglePlay) {
@@ -25,9 +24,6 @@ fun ControlPanel(
         }
         Button(onClick = { onSetLayout(if (state.layout == "vertical") "horizontal" else "vertical") }) {
             Text("Layout: ${state.layout}")
-        }
-        Button(onClick = onToggleOrientation) {
-            Text(if (state.isLandscape) "Switch to Portrait" else "Switch to Landscape")
         }
         // Trail length slider placeholder
         Text("Trail Length: ${state.trailLength}")
