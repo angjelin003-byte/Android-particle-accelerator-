@@ -173,6 +173,8 @@ export function useSimulation(initialPresetId: string = 'relativistic_billiards'
         radius: def.radius,
         nuclearRadiusFm: def.nuclearRadiusFm,
         atomicRadiusPm: def.atomicRadiusPm,
+        atomicNumberZ: def.atomicNumberZ,
+        massNumberA: def.massNumberA,
         electronShells: def.electronShells,
         isAtom: def.category === 'atom',
         trail: [{ x, y, z, time: 0, beta: relProps.beta }],

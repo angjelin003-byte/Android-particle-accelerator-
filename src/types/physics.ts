@@ -73,6 +73,8 @@ export interface ParticleState {
   radius: number;
   nuclearRadiusFm?: number;
   atomicRadiusPm?: number;
+  atomicNumberZ?: number;
+  massNumberA?: number;
   electronShells?: number[];
   isAtom?: boolean;
   
