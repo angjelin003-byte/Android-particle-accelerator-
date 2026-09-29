@@ -22,8 +22,25 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant Execute Permission for Gradle Wrapper
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Verify Gradle Wrapper & JAR
         run: |
+          mkdir -p gradle/wrapper android/gradle/wrapper
+          
+          # Check and fetch gradle-wrapper.jar if missing
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "gradle-wrapper.jar not found in root, downloading official wrapper..."
+            curl -sSL "https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar || gradle wrapper --gradle-version 8.5
+          fi
+          
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+            cp gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
+          fi
+
           if [ -f gradlew ]; then
             chmod +x gradlew
           fi
@@ -33,16 +50,19 @@ jobs:
 
       - name: Build with Gradle & Kotlin
         run: |
-          if [ -f gradlew ]; then
+          # Try gradlew first, fallback to system gradle
+          if [ -f gradlew ] && [ -f gradle/wrapper/gradle-wrapper.jar ]; then
             ./gradlew assembleDebug --stacktrace
-          else
+          elif [ -f android/gradlew ] && [ -f android/gradle/wrapper/gradle-wrapper.jar ]; then
             cd android && ./gradlew assembleDebug --stacktrace
+          else
+            gradle assembleDebug --stacktrace
           fi
 
       - name: Locate Generated APK
         id: find-apk
         run: |
-          APK_PATH=$(find . -name "*.apk" | head -n 1)
+          APK_PATH=$(find . -name "*debug*.apk" -o -name "*.apk" | head -n 1)
           echo "Found APK at: $APK_PATH"
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 

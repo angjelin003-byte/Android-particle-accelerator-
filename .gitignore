@@ -16,3 +16,6 @@ android/build/
 .idea/
 local.properties
 
+# Ensure Gradle wrapper JAR is tracked
+!**/gradle-wrapper.jar
+
