@@ -75,7 +75,7 @@ class SimulationViewModel : ViewModel() {
             definitionId = "proton",
             name = "Proton A",
             symbol = "p+",
-            color = "#6366F1", // Primary Indigo
+            color = "#6366F1",
             category = ParticleCategory.BARYON,
             x = -350.0,
             y = 0.0,
@@ -104,7 +104,7 @@ class SimulationViewModel : ViewModel() {
             definitionId = "proton",
             name = "Proton B",
             symbol = "p+",
-            color = "#EC4899", // Pink
+            color = "#EC4899",
             category = ParticleCategory.BARYON,
             x = 350.0,
             y = 0.0,
