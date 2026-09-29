@@ -55,7 +55,10 @@ data class SimulationState(
     val cameraRotationY: Float = -30f,
     val cameraRotationX: Float = 20f,
     val cameraDistance: Float = 1200f,
+    val cameraTranslationX: Float = 0f,
+    val cameraTranslationY: Float = 0f,
     val activeSection: String = "BEAM",
+    val maxParticles: Int = 150, // Safety limit
     
     // Force Coupling Constants (Scaled for visualization)
     val magneticFieldTesla: Double = 2.0,
@@ -121,6 +124,7 @@ object AppTheme {
         Color(0xFF1E293B), 
         Color(0xFF1E1B4B), 
         Color(0xFF0F172A),
-        Color(0xFF020617)
+        Color(0xFF020617),
+        Color(0xFFFFFFFF)
     )
 }

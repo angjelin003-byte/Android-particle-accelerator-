@@ -74,6 +74,10 @@ class SimulationViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(speedMultiplier = speed)
     }
 
+    fun setMaxParticles(count: Int) {
+        _uiState.value = _uiState.value.copy(maxParticles = count)
+    }
+
     fun setMagneticField(tesla: Double) {
         _uiState.value = _uiState.value.copy(magneticFieldTesla = tesla)
     }
@@ -96,6 +100,19 @@ class SimulationViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(
             cameraRotationX = (_uiState.value.cameraRotationX + rotateX).coerceIn(-60f, 60f),
             cameraRotationY = _uiState.value.cameraRotationY + rotateY
+        )
+    }
+
+    fun updateCameraZoom(zoomFactor: Float) {
+        _uiState.value = _uiState.value.copy(
+            cameraDistance = (_uiState.value.cameraDistance / zoomFactor).coerceIn(200f, 5000f)
+        )
+    }
+
+    fun updateCameraTranslation(dx: Float, dy: Float) {
+        _uiState.value = _uiState.value.copy(
+            cameraTranslationX = _uiState.value.cameraTranslationX + dx,
+            cameraTranslationY = _uiState.value.cameraTranslationY + dy
         )
     }
 
@@ -237,18 +254,24 @@ class SimulationViewModel : ViewModel() {
                     }
                 }
 
-                // Update velocities and positions
+                // Update velocities and positions with more stable integration
                 for (i in currentParticles.indices) {
                     val p = currentParticles[i]
                     if (p.annihilated) continue
+
+                    // Limit particle count in simulation processing
+                    if (updated.size + newParticles.size >= state.maxParticles) {
+                        updated.add(p)
+                        continue
+                    }
 
                     val nvx = p.vx + accelerations[i][0] * dt * state.speedMultiplier
                     val nvy = p.vy + accelerations[i][1] * dt * state.speedMultiplier
                     val nvz = p.vz + accelerations[i][2] * dt * state.speedMultiplier
                     
-                    val nx = p.x + nvx * state.speedMultiplier
-                    val ny = p.y + nvy * state.speedMultiplier
-                    val nz = p.z + nvz * state.speedMultiplier
+                    val nx = p.x + nvx * dt * 60.0 * state.speedMultiplier // Normalized to ~60fps
+                    val ny = p.y + nvy * dt * 60.0 * state.speedMultiplier
+                    val nz = p.z + nvz * dt * 60.0 * state.speedMultiplier
                     
                     // Weak Force (Decay)
                     var isDecaying = false
@@ -320,15 +343,48 @@ class SimulationViewModel : ViewModel() {
     private fun generateProducts(a: ParticleState, b: ParticleState): List<ParticleState> {
         val list = mutableListOf<ParticleState>()
         val rnd = Random
-        val energyGeV = _uiState.value.beamEnergyGeV
-        val count = (12 + rnd.nextInt(10) * (energyGeV / 2).toInt()).coerceAtMost(60) // Reduced N for N^2 perf
-        val particlePool = ElementaryParticles.ALL_PARTICLES
+        val totalEnergyMeV = a.energy + b.energy
+        val maxRoom = _uiState.value.maxParticles - _uiState.value.particles.size
+        if (maxRoom <= 0) return emptyList()
+
+        // Yield scales with energy, but capped by maxRoom
+        val count = (15 + rnd.nextInt(10) * (totalEnergyMeV / 2000.0).toInt()).coerceAtMost(maxRoom).coerceAtMost(80)
+        
+        // Distribution based on available energy
+        var remainingEnergy = totalEnergyMeV
+        
         for (i in 0 until count) {
-            val def = particlePool[rnd.nextInt(particlePool.size)]
+            // Filter pool by remaining energy to ensure realistic production
+            val possiblePool = ElementaryParticles.ALL_PARTICLES.filter { it.massMeV <= remainingEnergy * 0.8 }
+            if (possiblePool.isEmpty()) break
+            
+            val def = possiblePool[rnd.nextInt(possiblePool.size)]
+            remainingEnergy -= def.massMeV
+            
+            // Isotropic distribution for products (center of mass frame)
             val theta = rnd.nextDouble(0.0, PI)
             val phi = rnd.nextDouble(0.0, 2 * PI)
-            val speed = 2.0 + rnd.nextDouble(1.0, 8.0)
-            list.add(ParticleState(id = "prod_${System.currentTimeMillis()}_$i", definition = def, x = (a.x + b.x) / 2.0, y = (a.y + b.y) / 2.0, z = (a.z + b.z) / 2.0, vx = speed * sin(theta) * cos(phi), vy = speed * sin(theta) * sin(phi), vz = speed * cos(theta), beta = 0.0, gamma = 1.0, energy = def.massMeV, trail = emptyList(), isPrimaryBeam = null, colorCharge = if (def.hasColorCharge) (1..3).random() else 0))
+            
+            // Speed based on available kinetic energy
+            val kineticFactor = (remainingEnergy / totalEnergyMeV).coerceIn(0.1, 1.0)
+            val speed = (2.0 + rnd.nextDouble(1.0, 8.0)) * kineticFactor
+            
+            list.add(ParticleState(
+                id = "prod_${System.currentTimeMillis()}_$i",
+                definition = def,
+                x = (a.x + b.x) / 2.0,
+                y = (a.y + b.y) / 2.0,
+                z = (a.z + b.z) / 2.0,
+                vx = speed * sin(theta) * cos(phi),
+                vy = speed * sin(theta) * sin(phi),
+                vz = speed * cos(theta),
+                beta = 0.0, 
+                gamma = 1.0 + (speed.pow(2) / 100.0), // Simplified gamma for visual decay dilation
+                energy = def.massMeV,
+                trail = emptyList(),
+                isPrimaryBeam = null,
+                colorCharge = if (def.hasColorCharge) (1..3).random() else 0
+            ))
         }
         return list
     }

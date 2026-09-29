@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
                                 SimulationView(
                                     state = uiState,
                                     onRotate = { rx, ry -> viewModel.updateCamera(rx, ry) },
+                                    onZoom = { factor -> viewModel.updateCameraZoom(factor) },
+                                    onPan = { dx, dy -> viewModel.updateCameraTranslation(dx, dy) },
                                     onSelectParticle = { id -> viewModel.selectParticle(id) },
                                     modifier = Modifier.fillMaxSize()
                                 )
@@ -98,6 +100,7 @@ class MainActivity : ComponentActivity() {
                                 onSetBeamEnergy = { viewModel.setBeamEnergy(it) },
                                 onSetTrailLength = { viewModel.setTrailLength(it) },
                                 onSetSpeed = { viewModel.setSpeed(it) },
+                                onSetMaxParticles = { viewModel.setMaxParticles(it) },
                                 onSetMagneticField = { viewModel.setMagneticField(it) },
                                 onSetForceScale = { f, s -> viewModel.setForceScale(f, s) },
                                 onTogglePanel = { viewModel.togglePanel() },
@@ -111,6 +114,8 @@ class MainActivity : ComponentActivity() {
                                 SimulationView(
                                     state = uiState,
                                     onRotate = { rx, ry -> viewModel.updateCamera(rx, ry) },
+                                    onZoom = { factor -> viewModel.updateCameraZoom(factor) },
+                                    onPan = { dx, dy -> viewModel.updateCameraTranslation(dx, dy) },
                                     onSelectParticle = { id -> viewModel.selectParticle(id) },
                                     modifier = Modifier.fillMaxSize()
                                 )
@@ -129,6 +134,7 @@ class MainActivity : ComponentActivity() {
                                 onSetBeamEnergy = { viewModel.setBeamEnergy(it) },
                                 onSetTrailLength = { viewModel.setTrailLength(it) },
                                 onSetSpeed = { viewModel.setSpeed(it) },
+                                onSetMaxParticles = { viewModel.setMaxParticles(it) },
                                 onSetMagneticField = { viewModel.setMagneticField(it) },
                                 onSetForceScale = { f, s -> viewModel.setForceScale(f, s) },
                                 onTogglePanel = { viewModel.togglePanel() },

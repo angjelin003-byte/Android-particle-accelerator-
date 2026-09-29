@@ -37,6 +37,7 @@ fun ControlPanel(
     onSetBeamEnergy: (Double) -> Unit,
     onSetTrailLength: (Int) -> Unit,
     onSetSpeed: (Double) -> Unit,
+    onSetMaxParticles: (Int) -> Unit,
     onSetMagneticField: (Double) -> Unit,
     onSetForceScale: (String, Double) -> Unit,
     onTogglePanel: () -> Unit,
@@ -58,9 +59,9 @@ fun ControlPanel(
         tonalElevation = 6.dp
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
+            // Header: Contains Menu, Palette, Play/Pause, Reset, Theme, Orientation, and Exit
             Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -75,17 +76,17 @@ fun ControlPanel(
                     
                     if (state.isPanelExpanded) {
                         Row(
-                            modifier = Modifier.padding(start = 8.dp),
+                            modifier = Modifier.padding(start = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             AppTheme.BgPalette.forEach { color ->
                                 Box(
                                     modifier = Modifier
-                                        .size(20.dp)
+                                        .size(18.dp)
                                         .clip(CircleShape)
                                         .background(color)
                                         .clickable { onSetBgColor(color) }
-                                        .then(if (state.customBgColor == color) Modifier.background(Color.White.copy(0.4f)) else Modifier)
+                                        .then(if (state.customBgColor == color) Modifier.background(Color.Gray.copy(0.4f)) else Modifier)
                                 )
                             }
                         }
@@ -94,6 +95,18 @@ fun ControlPanel(
                 
                 if (state.isPanelExpanded) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Execution Controls
+                        IconButton(onClick = onTogglePlay) {
+                            Icon(if (state.isRunning) Icons.Default.Close else Icons.Default.PlayArrow, tint = AppTheme.DarkPrimary, contentDescription = "Play/Pause")
+                        }
+                        IconButton(onClick = onReset) {
+                            Icon(Icons.Default.Refresh, tint = textColor, contentDescription = "Reset")
+                        }
+                        
+                        // Theme & Mode
+                        IconButton(onClick = onToggleTheme) {
+                            Icon(if (isDark) Icons.Default.Build else Icons.Default.Settings, tint = AppTheme.DarkAccent, contentDescription = "Theme")
+                        }
                         IconButton(onClick = onToggleOrientation) {
                             Icon(Icons.Default.Refresh, tint = AppTheme.DarkAccent, contentDescription = "Orientation")
                         }
@@ -136,16 +149,6 @@ fun ControlPanel(
                     ) {
                         when (state.activeSection) {
                             "BEAM" -> {
-                                Surface(color = textColor.copy(alpha = 0.05f), shape = MaterialTheme.shapes.medium) {
-                                    Row(modifier = Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Button(onClick = onTogglePlay, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppTheme.DarkPrimary)) {
-                                            Text(if (state.isRunning) "PAUSE" else "RUN", fontSize = 11.sp)
-                                        }
-                                        OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
-                                            Text("RESET", fontSize = 11.sp)
-                                        }
-                                    }
-                                }
                                 LabSlider("Energy", state.beamEnergyGeV, onSetBeamEnergy, 1f..14f, "GeV", "%.1f", textColor, secondaryTextColor)
                                 
                                 Surface(color = textColor.copy(alpha = 0.05f), shape = MaterialTheme.shapes.small) {
@@ -173,6 +176,8 @@ fun ControlPanel(
                                 )
                             }
                             "PHYSICS" -> {
+                                LabSlider("Particle Limit", state.maxParticles.toDouble(), { onSetMaxParticles(it.toInt()) }, 50f..500f, "objs", "%.0f", textColor, secondaryTextColor)
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = textColor.copy(0.1f))
                                 LabSlider("Strong Force", state.strongForceScale, { onSetForceScale("STRONG", it) }, 0f..2f, "G", "%.1f", textColor, secondaryTextColor)
                                 LabSlider("Weak Force", state.weakForceScale, { onSetForceScale("WEAK", it) }, 0f..5f, "G", "%.1f", textColor, secondaryTextColor)
                                 LabSlider("Electromagnetism", state.emForceScale, { onSetForceScale("EM", it) }, 0f..2f, "G", "%.1f", textColor, secondaryTextColor)
@@ -181,9 +186,6 @@ fun ControlPanel(
                                 LabSlider("Magnetic Field", state.magneticFieldTesla, onSetMagneticField, 0f..5f, "T", "%.1f", textColor, secondaryTextColor)
                                 LabSlider("Temporal Scale", state.speedMultiplier, onSetSpeed, 0.2f..3.0f, "x", "%.1f", textColor, secondaryTextColor)
                                 LabSlider("Decay Trails", state.trailLength.toDouble(), { onSetTrailLength(it.toInt()) }, 10f..500f, "px", "%.0f", textColor, secondaryTextColor)
-                                IconButton(onClick = onToggleTheme, modifier = Modifier.align(Alignment.End)) {
-                                    Text(if (isDark) "🌙 DARK" else "☀️ LIGHT", fontSize = 10.sp, color = textColor)
-                                }
                             }
                         }
                     }
