@@ -40,7 +40,7 @@ jobs:
                       print(f"Removing conflicting file: {filepath}")
                       os.remove(filepath)
 
-          # 2. Remove duplicate settings/build scripts in subdirectories to prevent multi-root conflicts
+          # 2. Remove duplicate settings/build scripts in subdirectories
           for duplicate in ('android/settings.gradle.kts', 'android/build.gradle.kts'):
               if os.path.exists(duplicate):
                   print(f"Removing duplicate file: {duplicate}")
