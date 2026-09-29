@@ -26,6 +26,8 @@ import com.example.app.viewmodel.SimulationViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
         setContent {
             val viewModel: SimulationViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
@@ -50,10 +52,10 @@ class MainActivity : ComponentActivity() {
                             onSetTrailLength = { viewModel.setTrailLength(it) },
                             onToggleOrientation = {
                                 viewModel.toggleOrientation()
-                                requestedOrientation = if (!uiState.isLandscape) {
-                                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                                } else {
+                                requestedOrientation = if (uiState.isLandscape) {
                                     ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                } else {
+                                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                                 }
                             }
                         )
