@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +28,12 @@ class MainActivity : ComponentActivity() {
             
             val isDark = uiState.theme == "dark"
             val bgColor = if (isDark) AppTheme.DarkBg else AppTheme.LightBg
+
+            // Panel animation state
+            val panelWidth by animateDpAsState(
+                targetValue = if (uiState.isPanelExpanded) 300.dp else 60.dp,
+                label = "Panel Width"
+            )
 
             MaterialTheme(
                 colorScheme = if (isDark) {
@@ -54,11 +61,15 @@ class MainActivity : ComponentActivity() {
                             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                                 SimulationView(
                                     state = uiState,
+                                    onRotate = { rx, ry -> viewModel.updateCamera(rx, ry) },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
                             
-                            VerticalDivider(thickness = 1.dp, color = if (isDark) AppTheme.DarkTextSecondary.copy(alpha = 0.2f) else AppTheme.LightTextSecondary.copy(alpha = 0.2f))
+                            VerticalDivider(
+                                thickness = 1.dp, 
+                                color = if (isDark) AppTheme.DarkTextSecondary.copy(alpha = 0.1f) else AppTheme.LightTextSecondary.copy(alpha = 0.1f)
+                            )
                             
                             ControlPanel(
                                 state = uiState,
@@ -69,19 +80,24 @@ class MainActivity : ComponentActivity() {
                                 onSetCollisionAngle = { viewModel.setCollisionAngle(it) },
                                 onSetTrailLength = { viewModel.setTrailLength(it) },
                                 onSetSpeed = { viewModel.setSpeed(it) },
-                                modifier = Modifier.width(280.dp)
+                                onTogglePanel = { viewModel.togglePanel() },
+                                modifier = Modifier.width(panelWidth)
                             )
                         }
                     } else {
                         Column(modifier = Modifier.fillMaxSize()) {
-                            Box(modifier = Modifier.weight(1.2f).fillMaxWidth()) {
+                            Box(modifier = Modifier.weight(1.5f).fillMaxWidth()) {
                                 SimulationView(
                                     state = uiState,
+                                    onRotate = { rx, ry -> viewModel.updateCamera(rx, ry) },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
                             
-                            HorizontalDivider(thickness = 1.dp, color = if (isDark) AppTheme.DarkTextSecondary.copy(alpha = 0.2f) else AppTheme.LightTextSecondary.copy(alpha = 0.2f))
+                            HorizontalDivider(
+                                thickness = 1.dp, 
+                                color = if (isDark) AppTheme.DarkTextSecondary.copy(alpha = 0.1f) else AppTheme.LightTextSecondary.copy(alpha = 0.1f)
+                            )
                             
                             ControlPanel(
                                 state = uiState,
@@ -92,6 +108,7 @@ class MainActivity : ComponentActivity() {
                                 onSetCollisionAngle = { viewModel.setCollisionAngle(it) },
                                 onSetTrailLength = { viewModel.setTrailLength(it) },
                                 onSetSpeed = { viewModel.setSpeed(it) },
+                                onTogglePanel = { viewModel.togglePanel() },
                                 modifier = Modifier.weight(1f).fillMaxWidth()
                             )
                         }

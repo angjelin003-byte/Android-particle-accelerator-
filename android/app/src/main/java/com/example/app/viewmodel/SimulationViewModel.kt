@@ -28,6 +28,10 @@ class SimulationViewModel : ViewModel() {
         }
     }
 
+    fun togglePanel() {
+        _uiState.value = _uiState.value.copy(isPanelExpanded = !_uiState.value.isPanelExpanded)
+    }
+
     fun toggleTheme() {
         val current = _uiState.value.theme
         _uiState.value = _uiState.value.copy(theme = if (current == "dark") "light" else "dark")
@@ -51,6 +55,13 @@ class SimulationViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(speedMultiplier = speed)
     }
 
+    fun updateCamera(rotateX: Float, rotateY: Float) {
+        _uiState.value = _uiState.value.copy(
+            cameraRotationX = (_uiState.value.cameraRotationX + rotateX).coerceIn(-60f, 60f),
+            cameraRotationY = _uiState.value.cameraRotationY + rotateY
+        )
+    }
+
     fun resetSimulation() {
         simulationJob?.cancel()
         simulationJob = null
@@ -64,20 +75,20 @@ class SimulationViewModel : ViewModel() {
         val beta = sqrt(max(0.0, 1.0 - 1.0 / (gamma * gamma)))
         val p = gamma * m * beta
 
-        val p1Vx = beta * 5.0
+        val p1Vx = beta * 6.0
         val p1Vy = 0.0
         
-        val p2Vx = -beta * 5.0 * cos(angleRad)
-        val p2Vy = -beta * 5.0 * sin(angleRad)
+        val p2Vx = -beta * 6.0 * cos(angleRad)
+        val p2Vy = -beta * 6.0 * sin(angleRad)
 
         val beamA = ParticleState(
             id = "beam_a",
             definitionId = "proton",
             name = "Proton A",
             symbol = "p+",
-            color = "#6366F1",
+            color = "#818CF8",
             category = ParticleCategory.BARYON,
-            x = -350.0,
+            x = -400.0,
             y = 0.0,
             z = 0.0,
             vx = p1Vx,
@@ -104,9 +115,9 @@ class SimulationViewModel : ViewModel() {
             definitionId = "proton",
             name = "Proton B",
             symbol = "p+",
-            color = "#EC4899",
+            color = "#F472B6",
             category = ParticleCategory.BARYON,
-            x = 350.0,
+            x = 400.0,
             y = 0.0,
             z = 0.0,
             vx = p2Vx,
@@ -130,8 +141,7 @@ class SimulationViewModel : ViewModel() {
 
         _uiState.value = _uiState.value.copy(
             particles = listOf(beamA, beamB),
-            isRunning = false,
-            selectedParticleId = null
+            isRunning = false
         )
     }
 
@@ -170,7 +180,7 @@ class SimulationViewModel : ViewModel() {
                 val b = updated.find { it.isPrimaryBeam == "B" }
                 
                 if (a != null && b != null && !collided) {
-                    val dist = sqrt((a.x - b.x).pow(2) + (a.y - b.y).pow(2))
+                    val dist = sqrt((a.x - b.x).pow(2) + (a.y - b.y).pow(2) + (a.z - b.z).pow(2))
                     if (dist < 20.0) {
                         collided = true
                         val products = generateReactionProducts(a, b)
@@ -191,16 +201,21 @@ class SimulationViewModel : ViewModel() {
     private fun generateReactionProducts(a: ParticleState, b: ParticleState): List<ParticleState> {
         val list = mutableListOf<ParticleState>()
         val rnd = kotlin.random.Random
-        val count = 8 + rnd.nextInt(8)
+        val count = 12 + rnd.nextInt(12)
         
-        val colors = listOf("#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6")
+        val colors = listOf("#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#A855F7", "#22D3EE")
         
         for (i in 0 until count) {
-            val angle = rnd.nextDouble(0.0, 2 * PI)
-            val speed = 3.0 + rnd.nextDouble(0.0, 6.0)
+            val theta = rnd.nextDouble(0.0, PI) // Polar angle
+            val phi = rnd.nextDouble(0.0, 2 * PI) // Azimuthal angle
+            val speed = 2.0 + rnd.nextDouble(0.0, 8.0)
+            
+            val vx = speed * sin(theta) * cos(phi)
+            val vy = speed * sin(theta) * sin(phi)
+            val vz = speed * cos(theta)
             
             val m = 139.5
-            val energy = m * (1.2 + rnd.nextDouble(0.0, 3.0))
+            val energy = m * (1.1 + rnd.nextDouble(0.0, 4.0))
             val gamma = energy / m
             val beta = sqrt(max(0.0, 1.0 - 1.0 / (gamma * gamma)))
             val p = gamma * m * beta
@@ -209,27 +224,27 @@ class SimulationViewModel : ViewModel() {
                 ParticleState(
                     id = "prod_$i",
                     definitionId = "pion",
-                    name = "Reaction Product #$i",
-                    symbol = "π",
+                    name = "Particle #$i",
+                    symbol = if (i % 2 == 0) "π" else "K",
                     color = colors[rnd.nextInt(colors.size)],
                     category = ParticleCategory.MESON,
                     x = (a.x + b.x) / 2.0,
                     y = (a.y + b.y) / 2.0,
-                    z = 0.0,
-                    vx = cos(angle) * speed,
-                    vy = sin(angle) * speed,
-                    vz = rnd.nextDouble(-1.0, 1.0),
+                    z = (a.z + b.z) / 2.0,
+                    vx = vx,
+                    vy = vy,
+                    vz = vz,
                     mass = m,
                     charge = 0.0,
                     beta = beta,
                     gamma = gamma,
-                    px = p * cos(angle),
-                    py = p * sin(angle),
-                    pz = 0.0,
+                    px = p * sin(theta) * cos(phi),
+                    py = p * sin(theta) * sin(phi),
+                    pz = p * cos(theta),
                     pTotal = p,
                     energy = energy,
                     kineticEnergy = energy - m,
-                    radius = 8.0,
+                    radius = 7.0,
                     trail = emptyList(),
                     isPrimaryBeam = null,
                     isReactionProduct = true

@@ -42,25 +42,28 @@ data class TrailPoint(val x: Double, val y: Double, val z: Double, val time: Dou
 data class SimulationState(
     val particles: List<ParticleState> = emptyList(),
     val isRunning: Boolean = false,
+    val isPanelExpanded: Boolean = true,
     val theme: String = "dark",
     val beamEnergyMeV: Double = 7000.0,
     val collisionAngleDeg: Double = 180.0,
     val trailLength: Int = 150,
     val speedMultiplier: Double = 1.0,
-    val selectedParticleId: String? = null
+    val cameraRotationY: Float = 0f,
+    val cameraRotationX: Float = 0f,
+    val cameraDistance: Float = 1000f
 )
 
 object AppTheme {
-    val DarkBg = Color(0xFF0F172A)
-    val DarkSurface = Color(0xFF1E293B)
-    val DarkPrimary = Color(0xFF6366F1)
-    val DarkAccent = Color(0xFF06B6D4)
-    val DarkText = Color(0xFFF8FAFC)
+    val DarkBg = Color(0xFF07090E)
+    val DarkSurface = Color(0xFF111827)
+    val DarkPrimary = Color(0xFF818CF8)
+    val DarkAccent = Color(0xFF22D3EE)
+    val DarkText = Color(0xFFF1F5F9)
     val DarkTextSecondary = Color(0xFF94A3B8)
     
     val LightBg = Color(0xFFF8FAFC)
     val LightSurface = Color(0xFFFFFFFF)
-    val LightPrimary = Color(0xFF4F46E5)
+    val LightPrimary = Color(0xFF6366F1)
     val LightAccent = Color(0xFF0891B2)
     val LightText = Color(0xFF0F172A)
     val LightTextSecondary = Color(0xFF64748B)

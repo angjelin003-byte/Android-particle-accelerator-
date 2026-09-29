@@ -1,12 +1,17 @@
 package com.example.app.ui
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,6 +28,7 @@ fun ControlPanel(
     onSetCollisionAngle: (Double) -> Unit,
     onSetTrailLength: (Int) -> Unit,
     onSetSpeed: (Double) -> Unit,
+    onTogglePanel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -34,125 +40,143 @@ fun ControlPanel(
     Surface(
         modifier = modifier.fillMaxHeight(),
         color = surfaceColor,
-        tonalElevation = 2.dp
+        tonalElevation = 8.dp
     ) {
         Column(
-            modifier = Modifier
-                .verticalScroll(scrollState)
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Fold Button Header
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                contentAlignment = Alignment.CenterEnd
             ) {
-                Column {
-                    Text(
-                        "COLLIDER LAB",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
-                        ),
-                        color = textColor
-                    )
-                    Text(
-                        "Compact v1.2",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = secondaryTextColor
-                    )
-                }
-                
-                IconButton(onClick = onToggleTheme) {
-                    Text(
-                        if (isDark) "🌙" else "☀️",
-                        fontSize = 18.sp
+                IconButton(onClick = onTogglePanel) {
+                    Icon(
+                        imageVector = if (state.isPanelExpanded) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowLeft,
+                        contentDescription = "Toggle Panel",
+                        tint = textColor
                     )
                 }
             }
 
-            // Main Controls Card
-            OutlinedCard(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.outlinedCardColors(containerColor = surfaceColor)
+            AnimatedVisibility(
+                visible = state.isPanelExpanded,
+                enter = expandHorizontally() + fadeIn(),
+                exit = shrinkHorizontally() + fadeOut()
             ) {
-                Row(
-                    modifier = Modifier.padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .width(280.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Button(
-                        onClick = onTogglePlay,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(0.dp),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(if (state.isRunning) "PAUSE" else "RUN")
+                    // Header
+                    Column {
+                        Text(
+                            "QUANTUM LAB 3D",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 2.sp
+                            ),
+                            color = textColor
+                        )
+                        Text(
+                            "High-Energy Physics Simulation",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = secondaryTextColor
+                        )
                     }
-                    
+
+                    // Theme & Primary Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onTogglePlay,
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.DarkPrimary)
+                        ) {
+                            Text(if (state.isRunning) "PAUSE" else "INITIATE", fontSize = 12.sp)
+                        }
+                        
+                        IconButton(
+                            onClick = onToggleTheme,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Text(if (isDark) "🌙" else "☀️")
+                        }
+                    }
+
                     OutlinedButton(
                         onClick = onReset,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(0.dp),
-                        shape = MaterialTheme.shapes.small
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium
                     ) {
-                        Text("RESET")
+                        Text("RESET CHAMBER", fontSize = 12.sp)
                     }
-                }
-            }
 
-            // Parameters
-            CompactSlider(
-                label = "Beam Energy",
-                value = state.beamEnergyMeV.toFloat(),
-                onValueChange = { onSetBeamEnergy(it.toDouble()) },
-                valueRange = 100f..14000f,
-                unit = "MeV",
-                color = textColor,
-                secondaryColor = secondaryTextColor
-            )
+                    HorizontalDivider(color = secondaryTextColor.copy(alpha = 0.2f))
 
-            CompactSlider(
-                label = "Angle",
-                value = state.collisionAngleDeg.toFloat(),
-                onValueChange = { onSetCollisionAngle(it.toDouble()) },
-                valueRange = 0f..180f,
-                unit = "°",
-                color = textColor,
-                secondaryColor = secondaryTextColor
-            )
+                    // Parameters
+                    CompactParameter(
+                        label = "Luminosity / Energy",
+                        value = state.beamEnergyMeV,
+                        onValueChange = onSetBeamEnergy,
+                        valueRange = 100f..14000f,
+                        unit = "MeV",
+                        color = textColor,
+                        secondaryColor = secondaryTextColor
+                    )
 
-            CompactSlider(
-                label = "Speed",
-                value = state.speedMultiplier.toFloat(),
-                onValueChange = { onSetSpeed(it.toDouble()) },
-                valueRange = 0.2f..3.0f,
-                unit = "x",
-                format = "%.1f",
-                color = textColor,
-                secondaryColor = secondaryTextColor
-            )
+                    CompactParameter(
+                        label = "Injection Angle",
+                        value = state.collisionAngleDeg,
+                        onValueChange = onSetCollisionAngle,
+                        valueRange = 0f..180f,
+                        unit = "°",
+                        color = textColor,
+                        secondaryColor = secondaryTextColor
+                    )
 
-            CompactSlider(
-                label = "Trails",
-                value = state.trailLength.toFloat(),
-                onValueChange = { onSetTrailLength(it.toInt()) },
-                valueRange = 10f..400f,
-                unit = "px",
-                color = textColor,
-                secondaryColor = secondaryTextColor
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Status Info
-            OutlinedCard(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.outlinedCardColors(containerColor = surfaceColor.copy(alpha = 0.5f))
-            ) {
-                Column(modifier = Modifier.padding(8.dp)) {
-                    StatusRow("Status", if (state.isRunning) "Simulating" else "Standby", textColor, secondaryTextColor)
-                    StatusRow("Particles", state.particles.size.toString(), textColor, secondaryTextColor)
+                    CompactParameter(
+                        label = "Temporal Scale",
+                        value = state.speedMultiplier,
+                        onValueChange = onSetSpeed,
+                        valueRange = 0.1f..3.0f,
+                        unit = "x",
+                        format = "%.1f",
+                        color = textColor,
+                        secondaryColor = secondaryTextColor
+                    )
+
+                    CompactParameter(
+                        label = "Decay Trails",
+                        value = state.trailLength.toDouble(),
+                        onValueChange = { onSetTrailLength(it.toInt()) },
+                        valueRange = 10f..500f,
+                        unit = "px",
+                        color = textColor,
+                        secondaryColor = secondaryTextColor
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // Chamber Status
+                    Surface(
+                        color = textColor.copy(alpha = 0.05f),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            ChamberInfo("VACUUM", "STABLE", textColor, secondaryTextColor)
+                            ChamberInfo("ENTROPY", state.particles.size.toString(), textColor, secondaryTextColor)
+                        }
+                    }
                 }
             }
         }
@@ -160,44 +184,35 @@ fun ControlPanel(
 }
 
 @Composable
-fun CompactSlider(
+fun CompactParameter(
     label: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
+    value: Double,
+    onValueChange: (Double) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     unit: String,
     format: String = "%.0f",
-    color: androidx.compose.ui.graphics.Color,
-    secondaryColor: androidx.compose.ui.graphics.Color
+    color: Color,
+    secondaryColor: Color
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = color
-            )
-            Text(
-                "${format.format(value)} $unit",
-                style = MaterialTheme.typography.labelSmall,
-                color = secondaryColor
-            )
+            Text(label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = color)
+            Text("${format.format(value)} $unit", style = MaterialTheme.typography.labelSmall, color = secondaryColor)
         }
         Slider(
-            value = value,
-            onValueChange = onValueChange,
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.toDouble()) },
             valueRange = valueRange,
-            modifier = Modifier.height(32.dp)
+            colors = SliderDefaults.colors(thumbColor = AppTheme.DarkAccent, activeTrackColor = AppTheme.DarkAccent.copy(alpha = 0.5f))
         )
     }
 }
 
 @Composable
-fun StatusRow(label: String, value: String, color: androidx.compose.ui.graphics.Color, secondaryColor: androidx.compose.ui.graphics.Color) {
+fun ChamberInfo(label: String, value: String, color: Color, secondaryColor: Color) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
