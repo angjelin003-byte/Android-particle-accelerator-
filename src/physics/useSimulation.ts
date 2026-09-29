@@ -59,15 +59,24 @@ const DEFAULT_CONFIG: SimulationConfig = {
   reactionsEnabled: true,
   relativisticKinematics: true,
   frameOfReference: 'lab',
+  theme: 'dark',
+  sizeScaleMode: 'realistic',
+  showTrails: true,
+  trailLength: 140,
+  trailStyle: 'ribbon',
+  trailWidth: 2.5,
+  trailOpacity: 0.7,
+  trailColorMode: 'particle',
+  interactionSphereEnabled: true,
+  interactionSphereRadius: 240,
+  autoReloadOnExit: true,
   showScatteringAngles: true,
   showProtractorGrid: true,
   showMomentumVectors: true,
   showVelocityVectors: false,
   showLorentzContraction: true,
-  showTrails: true,
   showEnergyLevels: true,
   showDetectorWireframe: true,
-  trailLength: 140,
 };
 
 export function useSimulation(initialPresetId: string = 'relativistic_billiards') {
@@ -95,6 +104,7 @@ export function useSimulation(initialPresetId: string = 'relativistic_billiards'
   const vertexRef = useRef<CollisionVertex3D | null>(null);
   const timeElapsedPsRef = useRef<number>(0);
   const hasCollidedRef = useRef<boolean>(false);
+  const enteredSphereRef = useRef<boolean>(false);
   const initialEnergyRef = useRef<number>(0);
   const initialMomentumRef = useRef<{ px: number; py: number; pz: number; pTotal: number }>({
     px: 0, py: 0, pz: 0, pTotal: 0,
@@ -161,7 +171,11 @@ export function useSimulation(initialPresetId: string = 'relativistic_billiards'
         energy: relProps.energy,
         kineticEnergy: relProps.kineticEnergy,
         radius: def.radius,
-        trail: [{ x, y, z, time: 0 }],
+        nuclearRadiusFm: def.nuclearRadiusFm,
+        atomicRadiusPm: def.atomicRadiusPm,
+        electronShells: def.electronShells,
+        isAtom: def.category === 'atom',
+        trail: [{ x, y, z, time: 0, beta: relProps.beta }],
         isPrimaryBeam: role,
         isReactionProduct: false,
       };
@@ -224,6 +238,7 @@ export function useSimulation(initialPresetId: string = 'relativistic_billiards'
       vertexRef.current = null;
       timeElapsedPsRef.current = 0;
       hasCollidedRef.current = false;
+      enteredSphereRef.current = false;
       minSepRef.current = Math.hypot(startXB - startXA, startYB - startYA, startZB - startZA);
 
       const totE = pA.energy + pB.energy;
@@ -698,11 +713,42 @@ export function useSimulation(initialPresetId: string = 'relativistic_billiards'
           }
 
           if (step % 2 === 0) {
-            p.trail.push({ x: p.x, y: p.y, z: p.z, time: timeElapsedPsRef.current });
+            p.trail.push({ x: p.x, y: p.y, z: p.z, time: timeElapsedPsRef.current, beta: p.beta });
             if (p.trail.length > config.trailLength) {
               p.trail.shift();
             }
           }
+        }
+      }
+
+      // Check if particles entered the chamber (closest approach started)
+      const pA_active = parts.find((p) => p.isPrimaryBeam === 'A' && !p.annihilated);
+      const pB_active = parts.find((p) => p.isPrimaryBeam === 'B' && !p.annihilated);
+      const sphereR = config.interactionSphereRadius;
+      if (
+        (pA_active && Math.hypot(pA_active.x, pA_active.y, pA_active.z) < sphereR * 0.8) ||
+        (pB_active && Math.hypot(pB_active.x, pB_active.y, pB_active.z) < sphereR * 0.8) ||
+        hasCollidedRef.current ||
+        vertexRef.current
+      ) {
+        enteredSphereRef.current = true;
+      }
+
+      // Sphere of Interaction: when at least 1 particle exits the sphere, reload interaction
+      if (config.interactionSphereEnabled && config.autoReloadOnExit && enteredSphereRef.current) {
+        const sphereR2 = sphereR * sphereR;
+        let particleExited = false;
+        for (const p of parts) {
+          if (p.annihilated) continue;
+          const r2 = p.x * p.x + p.y * p.y + p.z * p.z;
+          if (r2 > sphereR2) {
+            particleExited = true;
+            break;
+          }
+        }
+        if (particleExited) {
+          resetSimulation();
+          return;
         }
       }
 

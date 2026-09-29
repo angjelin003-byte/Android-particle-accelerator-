@@ -11,7 +11,12 @@ export type ParticleCategory =
   | 'baryon'
   | 'meson'
   | 'nucleus'
+  | 'atom'
   | 'custom';
+
+export type TrailStyle = 'ribbon' | 'dashed' | 'velocity_heatmap' | 'sparks';
+export type AppTheme = 'dark' | 'light';
+export type SizeScaleMode = 'realistic' | 'enhanced';
 
 export interface ParticleDefinition {
   id: string;
@@ -27,6 +32,11 @@ export interface ParticleDefinition {
   secondaryColor?: string;
   description: string;
   isAntiparticle?: boolean;
+  nuclearRadiusFm?: number; // Physical nuclear radius in femtometers
+  atomicRadiusPm?: number;  // Atomic radius in picometers (for atoms)
+  atomicNumberZ?: number;   // Number of protons
+  massNumberA?: number;     // Total nucleons (protons + neutrons)
+  electronShells?: number[]; // Electron configuration per shell (e.g. [2, 8, 4] for Si)
 }
 
 export interface ParticleState {
@@ -59,11 +69,15 @@ export interface ParticleState {
   energy: number;          // total relativistic energy E = gamma * m * c^2 (MeV)
   kineticEnergy: number;   // K = E - m*c^2 (MeV)
   
-  // Visual geometry
+  // Visual geometry & physical scale
   radius: number;
+  nuclearRadiusFm?: number;
+  atomicRadiusPm?: number;
+  electronShells?: number[];
+  isAtom?: boolean;
   
   // 3D Trajectory history for trails
-  trail: Array<{ x: number; y: number; z: number; time: number }>;
+  trail: Array<{ x: number; y: number; z: number; time: number; beta: number }>;
   
   // Collision lifecycle flags
   isPrimaryBeam: 'A' | 'B' | null;
@@ -128,14 +142,29 @@ export interface SimulationConfig {
   relativisticKinematics: boolean;
   frameOfReference: 'lab' | 'com';
   
+  // Visual themes & modes
+  theme: AppTheme;
+  sizeScaleMode: SizeScaleMode;
+  
+  // Particle Trail Editor Parameters
+  showTrails: boolean;
+  trailLength: number;
+  trailStyle: TrailStyle;
+  trailWidth: number;
+  trailOpacity: number;
+  trailColorMode: 'particle' | 'doppler';
+  
+  // Sphere of Interaction & Boundary Reload
+  interactionSphereEnabled: boolean;
+  interactionSphereRadius: number;
+  autoReloadOnExit: boolean;
+  
   // 3D Visualization overlays
   showScatteringAngles: boolean;
   showProtractorGrid: boolean;
   showMomentumVectors: boolean;
   showVelocityVectors: boolean;
   showLorentzContraction: boolean;
-  showTrails: boolean;
   showEnergyLevels: boolean;
   showDetectorWireframe: boolean;
-  trailLength: number;
 }
