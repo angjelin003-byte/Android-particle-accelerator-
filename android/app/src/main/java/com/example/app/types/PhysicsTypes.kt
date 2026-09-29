@@ -65,7 +65,8 @@ data class SimulationState(
     val gravityScale: Double = 0.0, // Usually 0 because it's too weak, but can be enabled
     
     val selectedParticleA: ParticleDefinition = ElementaryParticles.PROTON,
-    val selectedParticleB: ParticleDefinition = ElementaryParticles.PROTON
+    val selectedParticleB: ParticleDefinition = ElementaryParticles.PROTON,
+    val selectedParticleId: String? = null // Track tapped particle for bubble
 )
 
 object ElementaryParticles {

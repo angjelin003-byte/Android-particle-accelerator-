@@ -88,6 +88,10 @@ class SimulationViewModel : ViewModel() {
         }
     }
 
+    fun selectParticle(id: String?) {
+        _uiState.value = _uiState.value.copy(selectedParticleId = id)
+    }
+
     fun updateCamera(rotateX: Float, rotateY: Float) {
         _uiState.value = _uiState.value.copy(
             cameraRotationX = (_uiState.value.cameraRotationX + rotateX).coerceIn(-60f, 60f),
@@ -130,7 +134,8 @@ class SimulationViewModel : ViewModel() {
                 createBeamParticle(p1Def, -500.0, "A"),
                 createBeamParticle(p2Def, 500.0, "B")
             ),
-            isRunning = false
+            isRunning = false,
+            selectedParticleId = null
         )
     }
 
